@@ -1,0 +1,31 @@
+<div class="dads-heading" data-size="24">
+  <h2 class="dads-heading__heading">設定を保存しました</h2>
+</div>
+{% if active_profile_name %}
+<p>プロファイル <strong>「{{ active_profile_name | profile_display }}」</strong> に保存しました。</p>
+{% endif %}
+<div class="section-stack">
+  <div class="dads-heading" data-size="20">
+    <h3 class="dads-heading__heading">子どもデータ</h3>
+  </div>
+  <dl class="dads-description-list" aria-label="子どもデータ設定">
+    {% for key, value in config.children.items() %}
+      <dt>{{ children_labels.get(key, key) }}</dt>
+      <dd class="code-inline">{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+<div class="section-stack">
+  <div class="dads-heading" data-size="20">
+    <h3 class="dads-heading__heading">保育所データ</h3>
+  </div>
+  <dl class="dads-description-list" aria-label="保育所データ設定">
+    {% for key, value in config.daycares.items() %}
+      <dt>{{ daycares_labels.get(key, key) }}</dt>
+      <dd class="code-inline">{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+<div class="button-row">
+  <a class="dads-button" data-type="outline" data-size="md" href="/">トップ画面へ戻る</a>
+</div>

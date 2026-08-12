@@ -1,0 +1,9 @@
+# See https://pre-commit.com for setup: `pip install pre-commit && pre-commit install`
+# ruff のバージョンは pyproject.toml の [project.optional-dependencies].format と揃える
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

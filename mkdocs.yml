@@ -1,0 +1,85 @@
+site_name: ChilmAI ドキュメント
+site_description: 自治体の保育所利用調整を支援する ChilmAI のドキュメント
+site_url: !ENV [CHILMAI_DOCS_SITE_URL, ""]
+repo_url: https://github.com/CyberAgent/ChilmAI
+repo_name: CyberAgent/ChilmAI
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  language: ja
+  logo: assets/favicon.svg
+  favicon: assets/favicon.svg
+  palette:
+    primary: custom
+    accent: custom
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - toc.follow
+
+extra_css:
+  - stylesheets/chilmai.css
+  - stylesheets/site.css
+
+extra_javascript:
+  - javascripts/chilmai-search.js
+
+nav:
+  - はじめに: index.md
+  - 自治体の方へ:
+      - 概要: reference/web-ui/index.md
+      - クイックスタート: reference/web-ui/quickstart.md
+      - 自分のデータで使う: reference/web-ui/prepare-data.md
+      - 選考の実行と結果の見方: reference/web-ui/run-results.md
+      - 困ったとき: reference/web-ui/troubleshooting.md
+  - ユーザガイド:
+      - インストールと実行: getting-started/quickstart.md
+      - 入力データと設定: getting-started/data-format.md
+      - Python API: api/python.md
+      - リファレンスアプリ: api/reference-app.md
+      - カスタマイズ: development/customization.md
+  - 開発に参加する:
+      - コントリビューション: development/contributing.md
+      - アーキテクチャ: development/architecture.md
+      - テスト: development/testing.md
+      - リリースフロー: development/workflows.md
+  - プロジェクト情報:
+      - セキュリティ: reference/security.md
+      - ライセンス: reference/license.md
+      - FAQ: reference/faq.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+  - redirects:
+      redirect_maps:
+        # 統合前の旧ページ URL からクイックスタートへ。
+        # #requirements / #exit アンカーは新ページで同名を維持しており、
+        # mkdocs-redirects がフラグメントを引き継ぐため旧アンカー URL もそのまま飛ぶ。
+        reference/web-ui/setup.md: reference/web-ui/quickstart.md
+        reference/web-ui/tutorial.md: reference/web-ui/quickstart.md
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            members_order: source
+            show_root_heading: true
+            show_root_full_path: true
+            show_source: false
+            filters:
+              - "!^_"

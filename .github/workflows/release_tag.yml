@@ -1,0 +1,130 @@
+name: release on tag push
+
+on:
+  push:
+    tags:
+      - "v*"
+  # GITHUB_TOKEN によるタグ push は push イベントを発火しないため、
+  # release_prepare.yml から gh workflow run --ref <tag> で起動する
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: 1
+
+jobs:
+  release_artifacts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
+          cache-suffix: release-tag
+      - name: Validate release tag
+        id: release
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "${tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([a-z]+[0-9]+)?([.]post[0-9]+)?([.]dev[0-9]+)?$ ]]; then
+            echo "Invalid release tag: ${tag}" >&2
+            exit 1
+          fi
+          version="$(uv version --short)"
+          if [[ "${tag#v}" != "${version}" ]]; then
+            echo "Tag ${tag} does not match project version ${version}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - name: Sync dependencies
+        run: uv sync --extra package
+      - name: Build with PyInstaller
+        run: uv run python apps/packager.py
+      - name: Check built binary exists
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist/ChilmAI/ChilmAI.exe")) {
+            Write-Error "Binary not found: dist/ChilmAI/ChilmAI.exe"
+          }
+      - name: Check local config is not packaged
+        shell: pwsh
+        run: |
+          if (Test-Path "dist/ChilmAI/data/config.json") {
+            Write-Error "Local config must not be packaged: dist/ChilmAI/data/config.json"
+          }
+      - name: Check license files are bundled
+        shell: pwsh
+        run: |
+          $required = @(
+            "LICENSE",
+            "NOTICE",
+            "TRADEMARK.md",
+            "THIRD-PARTY-NOTICES.txt",
+            "licenses/EPL-2.0.txt",
+            "licenses/MPL-2.0.txt",
+            "licenses/PyInstaller-COPYING.txt"
+          )
+          $missing = @()
+          foreach ($name in $required) {
+            $path = "dist/ChilmAI/$name"
+            if (!(Test-Path $path)) { $missing += "$name (absent)"; continue }
+            if ((Get-Item $path).Length -eq 0) { $missing += "$name (empty)" }
+          }
+          if ($missing) {
+            throw "License files missing from distribution: $($missing -join ', ')"
+          }
+      - name: Check third-party notices cover bundled native code
+        # インライン PowerShell ではなく Python にしてある。手元で実物に対して
+        # 実行して検証できるため（PowerShell 版は CRLF と scalar/array の扱いで
+        # 3 回落とした）。
+        run: uv run python scripts/check_bundled_notices.py dist/ChilmAI
+      - name: Compress dist directory
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          $zipPath = "dist/ChilmAI-${tag}.zip"
+          Compress-Archive -Path dist/ChilmAI -DestinationPath $zipPath
+          $hash = Get-FileHash -Algorithm SHA256 $zipPath
+          "$($hash.Hash.ToLower())  ChilmAI-${tag}.zip" | Set-Content -Path "${zipPath}.sha256" -Encoding ASCII
+      - name: Create draft GitHub Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.release.outputs.tag }}" \
+            --repo="$GITHUB_REPOSITORY" \
+            --title="${{ steps.release.outputs.tag }}" \
+            --generate-notes \
+            --verify-tag \
+            --draft
+      - name: Upload release assets
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.release.outputs.tag }}" \
+            "dist/ChilmAI-${{ steps.release.outputs.tag }}.zip" \
+            "dist/ChilmAI-${{ steps.release.outputs.tag }}.zip.sha256" \
+            --repo="$GITHUB_REPOSITORY"
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ steps.release.outputs.tag }}" \
+            --repo="$GITHUB_REPOSITORY" \
+            --draft=false

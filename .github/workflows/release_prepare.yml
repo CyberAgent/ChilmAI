@@ -1,0 +1,92 @@
+name: prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semantic version component to bump"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - rc
+          - stable
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: 1
+
+jobs:
+  prepare_release:
+    name: Version, test, commit, and tag
+    runs-on: ubuntu-latest
+    if: github.ref_name == github.event.repository.default_branch
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
+          cache-suffix: release-prepare
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Bump project version
+        id: version
+        run: |
+          uv version --bump "${{ inputs.bump }}" --no-sync
+          version="$(uv version --short)"
+          tag="v${version}"
+          if git rev-parse -q --verify "refs/tags/${tag}"; then
+            echo "Tag already exists: ${tag}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      - name: Sync dependencies
+        run: uv sync --extra test --extra format --extra package --extra docs
+      - name: Build docs
+        run: uv run --extra docs mkdocs build --strict -f mkdocs.yml
+      - name: Run non-browser tests
+        run: uv run python -m pytest test/ -m 'not (browser or binary)' -n auto
+      - name: Install Playwright browser
+        run: uv run playwright install chromium
+      - name: Run browser tests
+        run: uv run python -m pytest test/chilmai/browser -m browser -n 1
+      - name: Commit release version
+        run: |
+          git add pyproject.toml uv.lock
+          if git diff --cached --quiet; then
+            echo "No version files changed" >&2
+            exit 1
+          fi
+          git commit -m "chore: release ${{ steps.version.outputs.tag }}"
+      - name: Create release tag
+        run: git tag -a "${{ steps.version.outputs.tag }}" -m "${{ steps.version.outputs.tag }}"
+      - name: Push release commit and tag
+        run: |
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+      # GITHUB_TOKEN によるタグ push は release_tag.yml の push トリガーを
+      # 発火しないため、workflow_dispatch で明示的に起動する
+      - name: Trigger release build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release_tag.yml --ref "${{ steps.version.outputs.tag }}"

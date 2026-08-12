@@ -1,0 +1,70 @@
+<div class="dads-heading" data-size="24">
+  <h2 class="dads-heading__heading">データ確認結果</h2>
+</div>
+<div class="section-stack">
+  <div class="validate-status">
+    <span class="status-chip" data-status="{% if result.is_valid %}success{% else %}error{% endif %}">{{ view.status }}</span>
+    <p class="validate-status__message">{{ view.next_action }}</p>
+  </div>
+  {% if view.summary_rows %}
+    <div class="validate-summary-cards" role="group" aria-label="読み込み結果">
+      {% for row in view.summary_rows %}
+        <div class="validate-summary-card" {% if result.is_valid %}data-status="success"{% endif %} role="group" aria-label="{{ row.label }} {{ row.value }}">
+          <span class="validate-summary-card__value" aria-hidden="true">{{ row.value }}</span>
+          <span class="validate-summary-card__label" aria-hidden="true">{{ row.label }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% if view.format_errors %}
+  <div class="section-stack">
+    <div class="dads-heading" data-size="20">
+      <h3 class="dads-heading__heading">ファイル形式の問題</h3>
+    </div>
+    <ul class="message-list" data-tone="error" aria-label="ファイル形式エラー一覧">
+      {% for e in view.format_errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+    <p class="next-action">→ ファイル形式または列名の構造を確認し、必要に応じて修正して再アップロードしてください</p>
+  </div>
+{% endif %}
+{% if view.config_errors %}
+  <div class="section-stack">
+    <div class="dads-heading" data-size="20">
+      <h3 class="dads-heading__heading">設定の問題</h3>
+    </div>
+    <ul class="message-list" data-tone="error" aria-label="設定エラー一覧">
+      {% for e in view.config_errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+    <p class="next-action">→ <a href="/settings">項目名の設定</a>で列名を確認してください</p>
+  </div>
+{% endif %}
+{% if view.data_errors %}
+  <div class="section-stack">
+    <div class="dads-heading" data-size="20">
+      <h3 class="dads-heading__heading">データの問題</h3>
+    </div>
+    <ul class="message-list" data-tone="error" aria-label="データエラー一覧">
+      {% for e in view.data_errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+    <p class="next-action">→ ファイルを修正して、再度データ確認を実行してください</p>
+  </div>
+{% endif %}
+{% if result.warnings %}
+  <div class="section-stack">
+    <div class="dads-heading" data-size="20">
+      <h3 class="dads-heading__heading">警告一覧</h3>
+    </div>
+    <ul class="message-list" data-tone="warning" aria-label="警告一覧">
+      {% for w in result.warnings %}
+        <li>{{ w }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

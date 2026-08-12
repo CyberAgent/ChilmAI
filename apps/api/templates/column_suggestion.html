@@ -1,0 +1,87 @@
+{% if errors %}
+  <div class="notice notice--error" role="alert">
+    <div class="notice__icon" aria-hidden="true">!</div>
+    <div class="notice__text">
+      <ul class="notice__list">
+        {% for message in errors %}<li>{{ message }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endif %}
+
+{% if not analyzed_files and not errors %}
+  <p class="empty-state">解析するファイルが選択されていません。</p>
+{% elif analyzed_files and not suggestions and not errors %}
+  <div class="notice notice--info" role="status">
+    <div class="notice__icon" aria-hidden="true">i</div>
+    <div class="notice__text">
+      解析しました（{{ analyzed_files | join("、") }}）。検出した列名は現在の設定と一致しています。追加の変更は不要です。
+    </div>
+  </div>
+{% elif suggestions %}
+  <div class="suggestion-result" role="region" aria-label="自動入力の提案">
+    <p class="suggestion-result__lead">
+      解析しました（{{ analyzed_files | join("、") }}）。<strong>{{ suggestions | length }}件</strong>の項目で、現在の設定と異なる列名を検出しました。
+      内容を確認のうえ、フォームに反映してください。最終的な保存は下部の「設定を保存」で行ってください。
+    </p>
+    <div class="suggestion-table-wrap">
+      <table class="suggestion-table">
+        <thead>
+          <tr>
+            <th scope="col">対象</th>
+            <th scope="col">内部項目名</th>
+            <th scope="col">現在の設定</th>
+            <th scope="col">検出された列名</th>
+            <th scope="col">一致タイプ</th>
+            <th scope="col">採用</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in suggestions %}
+            <tr data-suggestion-row="{{ s.field_name }}">
+              <td>{{ s.section_label }}</td>
+              <td>{{ s.internal_label }}</td>
+              <td class="suggestion-current">{{ s.current_value or "（未設定）" }}</td>
+              <td class="suggestion-detected">
+                <code>{{ s.detected_value }}</code>
+              </td>
+              <td>
+                <span class="suggestion-badge" data-match-type="{{ s.match_type }}">{{ s.match_label }}</span>
+                {% if s.match_type == "fuzzy" %}<span class="suggestion-confidence">信頼度 {{ (s.confidence * 100) | round | int }}%</span>{% endif %}
+              </td>
+              <td>
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    class="suggestion-accept-checkbox"
+                    data-target-name="{{ s.field_name }}"
+                    data-detected-value="{{ s.detected_value }}"
+                    checked
+                  />
+                  反映する
+                </label>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="suggestion-actions">
+      <button
+        type="button"
+        class="dads-button"
+        data-type="solid-fill"
+        data-size="md"
+        id="suggestion-apply-button"
+      >チェックした項目をフォームに反映</button>
+      <button
+        type="button"
+        class="dads-button"
+        data-type="outline"
+        data-size="md"
+        id="suggestion-dismiss-button"
+      >提案を閉じる</button>
+    </div>
+    <p class="helper-text">反映後はフォームの内容を確認し、必要に応じて編集してから「設定を保存」を押してください。</p>
+  </div>
+{% endif %}

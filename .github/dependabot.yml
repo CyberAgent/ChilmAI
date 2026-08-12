@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # ワークフローのアクションはサプライチェーン対策としてコミット SHA で
+  # ピン留めしている。Dependabot は SHA とバージョンコメントの両方を
+  # 更新する PR を出すので、ピン留めの追従はこれに任せる。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      # アクションの更新は 1 本の PR にまとめる
+      github-actions:
+        patterns:
+          - "*"

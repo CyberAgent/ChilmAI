@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ChilmAI 設定</title>
+  <link rel="icon" href="/assets/favicon.svg" />
+  <script src="/static/htmx-lite.js?v={{ static_version }}"></script>
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}" />
+</head>
+
+<body>
+  <main class="container">
+    <div class="page-stack">
+      <section class="page-header">
+        <div class="page-header__top">
+          <div class="page-header__brand">
+            <img src="/assets/logo_yoko_black.svg" class="page-logo" alt="ChilmAI" />
+            <h1 class="page-app-name">項目名の設定</h1>
+          </div>
+          <nav>
+            <a class="dads-button" data-type="outline" data-size="md" href="/">トップ画面へ戻る</a>
+          </nav>
+        </div>
+      </section>
+
+      <section class="settings-explainer" aria-labelledby="explainer-title">
+        <div class="settings-explainer__text">
+          <p class="dads-kicker">このページでできること</p>
+          <h2 id="explainer-title" class="settings-explainer__title">帳票の列名と ChilmAI の項目の対応を設定する</h2>
+          <p class="settings-explainer__lead">
+            自治体ごとに帳票の列名は違うため、どの列がどの項目に対応するかを設定する必要があります。下のフォームに、お手元の帳票で使われている列名を入力してください。一度設定すれば、読み込みやマッチングに自動で反映されます。</p>
+        </div>
+      </section>
+
+      {% if profile_message %}
+      <div class="notice notice--success" role="status">
+        <div class="notice__icon" aria-hidden="true">✓</div>
+        <div class="notice__text">{{ profile_message }}</div>
+      </div>
+      {% endif %}
+      {% if profile_error %}
+      <div class="notice notice--error" role="alert">
+        <div class="notice__icon" aria-hidden="true">!</div>
+        <div class="notice__text">{{ profile_error }}</div>
+      </div>
+      {% endif %}
+
+      <details class="profile-disclosure" {% if profile_message or profile_error or profile_names|length> 1 %}open{%
+        endif %}>
+        <summary class="profile-disclosure__summary">
+          <span class="profile-disclosure__bar">
+            <span class="profile-disclosure__label">プロファイル:</span>
+            <strong class="profile-disclosure__current">{{ active_profile_name | profile_display }}</strong>
+          </span>
+          <span class="profile-disclosure__toggle">
+            <span class="profile-disclosure__chevron" aria-hidden="true"></span>
+          </span>
+        </summary>
+
+        <div class="profile-disclosure__body">
+          <p class="profile-disclosure__intro">帳票の項目名セットを切り替えて使う仕組みです。年度替わりや自治体ごとの帳票に合わせて、複数のセットを保持できます。</p>
+
+          <ul class="profile-list" role="list">
+            {% for name in profile_names %}
+            {% set is_active = (name == active_profile_name) %}
+            {% set is_default = (name == "default") %}
+            {% set menu_id = "profile-menu-" ~ loop.index %}
+            <li class="profile-list__item{% if is_active %} is-active{% endif %}">
+              <div class="profile-list__row-line">
+                <form method="post" action="/profiles/activate" class="profile-list__select-form">
+                  <input type="hidden" name="profile_name" value="{{ name }}" />
+                  <button type="submit" class="profile-list__row" {% if is_active %}disabled aria-current="true" {%
+                    endif %}>
+                    <span class="profile-list__radio" aria-hidden="true"></span>
+                    <span class="profile-list__name">{{ name | profile_display }}</span>
+                    {% if is_active %}<span class="profile-list__badge">編集中</span>{% endif %}
+                  </button>
+                </form>
+                {% if not is_default %}
+                <button type="button" class="profile-list__menu-trigger" aria-label="「{{ name | profile_display }}」の操作"
+                  aria-expanded="false" aria-controls="{{ menu_id }}"
+                  onclick="const li=this.closest('li');const open=li.toggleAttribute('data-menu-open');this.setAttribute('aria-expanded', open);">
+                  <span aria-hidden="true">⋯</span>
+                </button>
+                {% endif %}
+              </div>
+              {% if not is_default %}
+              <div class="profile-list__menu-body" id="{{ menu_id }}">
+                <form method="post" action="/profiles/rename" class="profile-list__menu-form">
+                  <input type="hidden" name="old_name" value="{{ name }}" />
+                  <label class="dads-form-control-label" data-size="sm">
+                    <span class="dads-form-control-label__label">新しい名前</span>
+                    <input class="dads-input-text__input" data-size="md" type="text" name="new_name" required
+                      maxlength="50" placeholder="新しい名前を入力" />
+                  </label>
+                  <div class="profile-list__menu-actions">
+                    <button class="dads-button" data-type="outline" data-size="sm" type="submit">名前を変更</button>
+                  </div>
+                </form>
+                <hr class="profile-list__menu-divider" />
+                <form method="post" action="/profiles/delete" class="profile-list__menu-form"
+                  onsubmit="return confirm('プロファイル「{{ name | profile_display }}」を削除しますか？');">
+                  <input type="hidden" name="profile_name" value="{{ name }}" />
+                  <p class="profile-list__menu-danger-text">このプロファイルを削除します{% if is_active %}（削除後はデフォルトに自動切替）{% endif %}。
+                  </p>
+                  <div class="profile-list__menu-actions">
+                    <button class="profile-list__menu-danger-button" type="submit">削除</button>
+                  </div>
+                </form>
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+
+          <details class="profile-create">
+            <summary class="profile-create__trigger">
+              <span class="profile-create__plus" aria-hidden="true">＋</span>
+              <span>新しいプロファイル</span>
+            </summary>
+            <form method="post" action="/profiles/create" class="profile-create__form">
+              <label class="dads-form-control-label" data-size="md">
+                <span class="dads-form-control-label__label">プロファイル名</span>
+                <input class="dads-input-text__input" data-size="md" type="text" name="profile_name" required
+                  maxlength="50" placeholder="例: 2026年度 / A市" />
+              </label>
+              <label class="dads-form-control-label" data-size="md">
+                <span class="dads-form-control-label__label">初期値の元（任意）</span>
+                <select class="dads-input-text__input" data-size="md" name="copy_from">
+                  <option value="">— デフォルト値から作成 —</option>
+                  {% for name in profile_names %}
+                  <option value="{{ name }}">{{ name | profile_display }} を複製</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <div class="button-row">
+                <button class="dads-button" data-type="solid-fill" data-size="md" type="submit">作成して切替</button>
+              </div>
+            </form>
+          </details>
+        </div>
+      </details>
+
+      <details class="quickfill">
+        <summary class="quickfill__trigger">
+          <span class="quickfill__icon" aria-hidden="true">⚡</span>
+          <span class="quickfill__text">
+            <strong class="quickfill__title">サンプルファイルから自動で対応づけ</strong>
+            <span class="quickfill__sub">CSV/Excel を選んで「列名を解析」を押すと、下のフォームに反映できます（任意）。</span>
+          </span>
+          <span class="quickfill__caret" aria-hidden="true"></span>
+        </summary>
+        <div class="quickfill__body">
+          <form id="sample-analyze-form" hx-post="/htmx/analyze-columns" hx-target="#sample-suggestion-result"
+            hx-encoding="multipart/form-data" class="panel-stack">
+            <div class="upload-grid">
+              <div class="dads-form-control-label" data-size="md">
+                <label class="dads-form-control-label__label" for="sample-children-file">申込者データ（任意）</label>
+                <div class="dads-file-upload">
+                  <div class="dads-file-upload__drop-area">
+                    <div class="dads-file-upload__button-area">
+                      <p>申込者データを選択してください。</p>
+                    </div>
+                    <p class="dads-file-upload__select-summary" data-file-summary="children_file">ファイルが選択されていません</p>
+                    <input id="sample-children-file" class="dads-file-upload__input dads-file-upload__native"
+                      type="file" name="children_file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb" />
+                  </div>
+                </div>
+              </div>
+              <div class="dads-form-control-label" data-size="md">
+                <label class="dads-form-control-label__label" for="sample-daycares-file">保育所データ（任意）</label>
+                <div class="dads-file-upload">
+                  <div class="dads-file-upload__drop-area">
+                    <div class="dads-file-upload__button-area">
+                      <p>保育所データを選択してください。</p>
+                    </div>
+                    <p class="dads-file-upload__select-summary" data-file-summary="daycares_file">ファイルが選択されていません</p>
+                    <input id="sample-daycares-file" class="dads-file-upload__input dads-file-upload__native"
+                      type="file" name="daycares_file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="button-row">
+              <button class="dads-button" data-type="solid-fill" data-size="md" type="submit" id="sample-analyze-button"
+                disabled>列名を解析</button>
+            </div>
+          </form>
+          <div id="sample-suggestion-result" class="suggestion-result-host" aria-live="polite"></div>
+        </div>
+      </details>
+
+      <section class="dads-surface mapping-card">
+        <form id="config-form" hx-post="/htmx/config" hx-target="#config-result" hx-encoding="multipart/form-data"
+          class="mapping-card__form">
+          <header class="mapping-card__head">
+            <div class="dads-heading" data-size="24">
+              <h2 class="dads-heading__heading">対応関係の設定</h2>
+            </div>
+            <p>プロファイル <strong>「{{ active_profile_name | profile_display }}」</strong> を編集中です。各行で、お手元の帳票で使われている列名を入力してください。</p>
+          </header>
+
+          <section class="mapping-group">
+            <header class="mapping-group__head">
+              <div class="dads-heading" data-size="20">
+                <h3 class="dads-heading__heading">申込者データ</h3>
+              </div>
+              <p>申込者ごとの情報（児童・点数・希望順など）が入った帳票の列名を指定します。</p>
+            </header>
+            <ul class="mapping-rows" role="list">
+              {% for key, label, value, sample in children_fields %}
+              <li class="mapping-row {% if value %}is-filled{% else %}is-empty{% endif %}">
+                <div class="mapping-row__left">
+                  <label class="mapping-row__label" for="field-children-{{ key }}">{{ label }}</label>
+                  {% if sample %}<p class="mapping-row__hint">{{ sample }}</p>{% endif %}
+                </div>
+                <div class="mapping-row__right">
+                  <span class="mapping-row__status" aria-hidden="true"></span>
+                  <input id="field-children-{{ key }}" class="dads-input-text__input mapping-row__input" data-size="md"
+                    type="text" name="children__{{ key }}" value="{{ value }}" placeholder="帳票で使われている列名" />
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </section>
+
+          <section class="mapping-group">
+            <header class="mapping-group__head">
+              <div class="dads-heading" data-size="20">
+                <h3 class="dads-heading__heading">保育所データ</h3>
+              </div>
+              <p>保育所ごとの情報（ID・名前・募集人数）が入った帳票の列名を指定します。</p>
+            </header>
+            <ul class="mapping-rows" role="list">
+              {% for key, label, value, sample in daycares_fields %}
+              <li class="mapping-row {% if value %}is-filled{% else %}is-empty{% endif %}">
+                <div class="mapping-row__left">
+                  <label class="mapping-row__label" for="field-daycares-{{ key }}">{{ label }}</label>
+                  {% if sample %}<p class="mapping-row__hint">{{ sample }}</p>{% endif %}
+                </div>
+                <div class="mapping-row__right">
+                  <span class="mapping-row__status" aria-hidden="true"></span>
+                  <input id="field-daycares-{{ key }}" class="dads-input-text__input mapping-row__input" data-size="md"
+                    type="text" name="daycares__{{ key }}" value="{{ value }}" placeholder="帳票で使われている列名" />
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </section>
+
+          <section class="mapping-group">
+            <header class="mapping-group__head">
+              <div class="dads-heading" data-size="20">
+                <h3 class="dads-heading__heading">出力設定</h3>
+              </div>
+              <p>結果ファイルに追加される列の名称と、結果の整形ルールを設定します。</p>
+            </header>
+            <ul class="mapping-rows" role="list">
+              {% for key, label, value, sample in output_fields %}
+              <li class="mapping-row {% if value %}is-filled{% else %}is-empty{% endif %}">
+                <div class="mapping-row__left">
+                  <label class="mapping-row__label" for="field-output-{{ key }}">{{ label }}</label>
+                  {% if sample %}<p class="mapping-row__hint">{{ sample }}</p>{% endif %}
+                </div>
+                <div class="mapping-row__right">
+                  <span class="mapping-row__status" aria-hidden="true"></span>
+                  <input id="field-output-{{ key }}" class="dads-input-text__input mapping-row__input" data-size="md"
+                    type="text" name="output__{{ key }}" value="{{ value }}" placeholder="マッチング結果に追加する列名" />
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            <div class="mapping-option">
+              <input type="hidden" name="output__exclude_transfer_back" value="false" />
+              <label class="checkbox-label">
+                <input type="checkbox" name="output__exclude_transfer_back" value="true" {% if
+                  exclude_transfer_back=="true" %}checked{% endif %} />
+                <span>転園元保育所への割当を結果に含めない</span>
+              </label>
+              <p class="mapping-option__hint">オンにすると、入所選考結果保育所ID が転園元保育所ID と同一の場合、結果列を空欄にします。</p>
+            </div>
+          </section>
+
+          <section class="mapping-group">
+            <header class="mapping-group__head">
+              <div class="dads-heading" data-size="20">
+                <h3 class="dads-heading__heading">組み合わせデータ（任意）</h3>
+              </div>
+              <p>任意きょうだい組み合わせを使う場合のみ設定します。組み合わせファイルの列名を指定してください。</p>
+            </header>
+            <ul class="mapping-rows" role="list">
+              {% for key, label, value, sample in combination_fields %}
+              <li class="mapping-row {% if value %}is-filled{% else %}is-empty{% endif %}">
+                <div class="mapping-row__left">
+                  <label class="mapping-row__label" for="field-combination-{{ key }}">{{ label }}</label>
+                  {% if sample %}<p class="mapping-row__hint">{{ sample }}</p>{% endif %}
+                </div>
+                <div class="mapping-row__right">
+                  <span class="mapping-row__status" aria-hidden="true"></span>
+                  <input id="field-combination-{{ key }}" class="dads-input-text__input mapping-row__input" data-size="md"
+                    type="text" name="combination__{{ key }}" value="{{ value }}" placeholder="組み合わせファイルの列名" />
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </section>
+
+          <footer class="mapping-card__foot">
+            <button class="dads-button" data-type="solid-fill" data-size="md" type="submit">設定を保存</button>
+            <p class="mapping-card__foot-hint">保存するとプロファイル「{{ active_profile_name | profile_display }}」に反映されます。</p>
+          </footer>
+        </form>
+      </section>
+
+      <section id="config-result" class="settings-result-inline" aria-live="polite"></section>
+
+      <details class="settings-advanced">
+        <summary class="settings-advanced__trigger">
+          <span class="settings-advanced__caret" aria-hidden="true"></span>
+          <span>デフォルトに戻す</span>
+        </summary>
+        <div class="settings-advanced__body">
+          <div class="settings-advanced__row">
+            <div class="settings-advanced__text">
+              <p>プロファイル「{{ active_profile_name | profile_display }}」の項目名設定をすべて初期値に戻します。プロファイルそのものは削除されません。</p>
+            </div>
+            <form method="post" action="/config/reset" onsubmit="return confirm('項目名の設定をすべてデフォルトに戻しますか？')">
+              <button class="dads-button" data-type="outline" data-size="md" type="submit">デフォルトに戻す</button>
+            </form>
+          </div>
+        </div>
+      </details>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var form = document.getElementById('sample-analyze-form');
+      var analyzeButton = document.getElementById('sample-analyze-button');
+      var resultHost = document.getElementById('sample-suggestion-result');
+      if (!form || !analyzeButton || !resultHost) return;
+
+      function updateAnalyzeButtonState() {
+        var inputs = form.querySelectorAll('input[type="file"]');
+        var hasFile = false;
+        inputs.forEach(function (input) {
+          if (input.files && input.files.length > 0) hasFile = true;
+        });
+        analyzeButton.disabled = !hasFile;
+      }
+      form.addEventListener('change', function (e) {
+        if (e.target && e.target.type === 'file') {
+          updateAnalyzeButtonState();
+          var summary = form.querySelector('[data-file-summary="' + e.target.name + '"]');
+          if (summary) {
+            summary.textContent = (e.target.files && e.target.files[0])
+              ? e.target.files[0].name
+              : 'ファイルが選択されていません';
+          }
+        }
+      });
+
+      function applySuggestions() {
+        var checkboxes = resultHost.querySelectorAll('.suggestion-accept-checkbox');
+        var configForm = document.getElementById('config-form');
+        if (!configForm) return;
+        var appliedCount = 0;
+        checkboxes.forEach(function (cb) {
+          if (!cb.checked) return;
+          var name = cb.getAttribute('data-target-name');
+          var value = cb.getAttribute('data-detected-value');
+          if (!name) return;
+          var input = configForm.querySelector('input[name="' + name + '"]');
+          if (input) {
+            input.value = value || '';
+            input.classList.add('input-flash');
+            // 反映された行は filled 状態に切り替える。
+            var row = input.closest('.mapping-row');
+            if (row) {
+              row.classList.remove('is-empty');
+              row.classList.add('is-filled');
+            }
+            setTimeout(function () { input.classList.remove('input-flash'); }, 1500);
+            appliedCount++;
+          }
+        });
+        var msg = document.createElement('div');
+        msg.className = 'notice notice--success';
+        msg.setAttribute('role', 'status');
+        msg.innerHTML = '<div class="notice__icon" aria-hidden="true">✓</div><div class="notice__text">' + appliedCount + '件の項目をフォームに反映しました。内容を確認のうえ「設定を保存」を押してください。</div>';
+        resultHost.innerHTML = '';
+        resultHost.appendChild(msg);
+        var configFormTop = configForm.getBoundingClientRect().top + window.scrollY - 16;
+        window.scrollTo({ top: configFormTop, behavior: 'smooth' });
+      }
+
+      resultHost.addEventListener('click', function (e) {
+        if (e.target && e.target.id === 'suggestion-apply-button') {
+          applySuggestions();
+        } else if (e.target && e.target.id === 'suggestion-dismiss-button') {
+          resultHost.innerHTML = '';
+        }
+      });
+
+      // 入力欄に値が入ったら mapping-row の塗りを変える（即時フィードバック）。
+      document.querySelectorAll('.mapping-row__input').forEach(function (input) {
+        input.addEventListener('input', function () {
+          var row = input.closest('.mapping-row');
+          if (!row) return;
+          if (input.value.trim().length > 0) {
+            row.classList.remove('is-empty');
+            row.classList.add('is-filled');
+          } else {
+            row.classList.remove('is-filled');
+            row.classList.add('is-empty');
+          }
+        });
+      });
+
+      updateAnalyzeButtonState();
+    })();
+  </script>
+</body>
+
+</html>

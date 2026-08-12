@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ChilmAI</title>
+    <link rel="icon" href="/assets/favicon.svg" />
+    <script src="/static/htmx-lite.js?v={{ static_version }}"></script>
+    <link rel="stylesheet" href="/static/style.css?v={{ static_version }}" />
+  </head>
+  <body>
+
+    <header class="app-header">
+      <div class="app-brand">
+        <img src="/assets/logo_yoko_black.svg" class="app-logo-img" alt="ChilmAI" />
+      </div>
+      <a class="config-link" href="/settings" aria-label="項目名の設定を開く">
+        <svg class="config-link__icon" aria-hidden="true" viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg">
+          <path fill="currentColor" d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/>
+        </svg>
+        <span>項目名の設定</span>
+        {% if active_profile_name %}
+        <span class="config-link__profile" aria-label="現在のプロファイル">
+          {{ active_profile_name | profile_display }}
+        </span>
+        {% endif %}
+      </a>
+    </header>
+
+    {% if is_packaged %}
+    <div class="packaged-notice" role="status">
+      アプリを終了するにはコマンドプロンプトウィンドウを閉じてください
+    </div>
+    {% endif %}
+
+    <div class="stepper-shell">
+
+      <!-- Sidebar progress tracker -->
+      <aside class="stepper-aside">
+        <div class="stepper-aside__header">
+          <p class="stepper-aside__title">進捗</p>
+          <span class="stepper-aside__count" id="stepper-count">0 / 3 完了</span>
+        </div>
+        <div class="stepper-progress-bar">
+          <div class="stepper-progress-fill" id="stepper-progress-fill" style="width: 0%"></div>
+        </div>
+        <nav aria-label="手順ナビゲーション">
+          <button type="button" class="stepper-step" data-step="1" data-state="current" data-viewing="true" aria-current="step">
+            <div class="stepper-step__rail">
+              <div class="stepper-step__bullet" id="step-bullet-1">1</div>
+              <div class="stepper-step__line"></div>
+            </div>
+            <div class="stepper-step__body">
+              <div class="stepper-step__label">ファイルのアップロード</div>
+              <div class="stepper-step__meta" id="step-meta-1">作業中</div>
+            </div>
+          </button>
+          <button type="button" class="stepper-step" data-step="2" data-state="locked" disabled>
+            <div class="stepper-step__rail">
+              <div class="stepper-step__bullet" id="step-bullet-2">2</div>
+              <div class="stepper-step__line"></div>
+            </div>
+            <div class="stepper-step__body">
+              <div class="stepper-step__label">データ確認</div>
+              <div class="stepper-step__meta" id="step-meta-2">未着手</div>
+            </div>
+          </button>
+          <button type="button" class="stepper-step" data-step="3" data-state="locked" disabled>
+            <div class="stepper-step__rail">
+              <div class="stepper-step__bullet" id="step-bullet-3">3</div>
+              <div class="stepper-step__line"></div>
+            </div>
+            <div class="stepper-step__body">
+              <div class="stepper-step__label">マッチング結果</div>
+              <div class="stepper-step__meta" id="step-meta-3">未着手</div>
+            </div>
+          </button>
+        </nav>
+      </aside>
+
+      <!-- Main content panels -->
+      <main class="stepper-main">
+
+        <!-- Panel 1: File upload -->
+        <div class="stepper-panel" id="panel-1">
+          <div class="stepper-panel__head">
+            <div>
+              <h1 class="stepper-panel__title">ファイルのアップロード</h1>
+            </div>
+            <span class="step-status-chip step-status-chip--current" id="panel-1-chip">作業中</span>
+          </div>
+
+          {% if not config_is_customized %}
+          <div class="notice notice--info">
+            <div class="notice__icon" aria-hidden="true">i</div>
+            <div class="notice__text">
+              項目名は<strong>デフォルト設定</strong>を使用しています。お使いの帳票の列名と異なる場合は、ヘッダーの「項目名の設定」から先に行ってください。
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="stepper-panel__body">
+            <section class="dads-surface">
+              <form
+                id="matching-form"
+                hx-post="/htmx/validate"
+                hx-target="#validate-result-content"
+                hx-encoding="multipart/form-data"
+                class="panel-stack"
+              >
+                <p class="dads-form-control-label__support-text">CSV または Excel 形式（.xls / .xlsx / .xlsm / .xlsb）のファイルをアップロードできます。</p>
+                <div class="upload-grid">
+                  <div class="dads-form-control-label" data-size="md">
+                    <label class="dads-form-control-label__label" for="children-file-input">
+                      申込者データ
+                      <span class="dads-form-control-label__requirement" data-required="true">※必須</span>
+                    </label>
+                    <div class="dads-file-upload">
+                      <div class="dads-file-upload__drop-area">
+                        <div class="dads-file-upload__button-area">
+                          <p>申込者データを選択してください。</p>
+                        </div>
+                        <p class="dads-file-upload__select-summary" data-file-summary="children_file">ファイルが選択されていません</p>
+                        <input id="children-file-input" class="dads-file-upload__input dads-file-upload__native" type="file" name="children_file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb" required />
+                      </div>
+                    </div>
+                    <p id="children_file-format-error" class="file-format-error" hidden role="alert"></p>
+                  </div>
+
+                  <div class="dads-form-control-label" data-size="md">
+                    <label class="dads-form-control-label__label" for="daycares-file-input">
+                      保育所データ
+                      <span class="dads-form-control-label__requirement" data-required="true">※必須</span>
+                    </label>
+                    <div class="dads-file-upload">
+                      <div class="dads-file-upload__drop-area">
+                        <div class="dads-file-upload__button-area">
+                          <p>保育所データを選択してください。</p>
+                        </div>
+                        <p class="dads-file-upload__select-summary" data-file-summary="daycares_file">ファイルが選択されていません</p>
+                        <input id="daycares-file-input" class="dads-file-upload__input dads-file-upload__native" type="file" name="daycares_file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb" required />
+                      </div>
+                    </div>
+                    <p id="daycares_file-format-error" class="file-format-error" hidden role="alert"></p>
+                  </div>
+
+                  <div class="dads-form-control-label" data-size="md">
+                    <label class="dads-form-control-label__label" for="combination-file-input">
+                      組み合わせデータ
+                      <span class="dads-form-control-label__requirement" data-required="false">（任意）</span>
+                    </label>
+                    <div class="dads-file-upload">
+                      <div class="dads-file-upload__drop-area">
+                        <div class="dads-file-upload__button-area">
+                          <p>任意きょうだい組み合わせを使う場合のみ選択してください。</p>
+                        </div>
+                        <p class="dads-file-upload__select-summary" data-file-summary="combination_file">ファイルが選択されていません</p>
+                        <input id="combination-file-input" class="dads-file-upload__input dads-file-upload__native" type="file" name="combination_file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb" />
+                      </div>
+                    </div>
+                    <p id="combination_file-format-error" class="file-format-error" hidden role="alert"></p>
+                  </div>
+                </div>
+              </form>
+            </section>
+            <p class="helper-text">ファイルを変更すると再度データ確認が必要です。</p>
+          </div>
+
+          <div class="stepper-panel__foot">
+            <button type="button" class="dads-button" data-type="outline" data-size="sm" disabled>← 戻る</button>
+            <p class="stepper-panel__foot-meta">次の手順: <strong>データ確認</strong></p>
+            <div class="stepper-panel__foot-actions">
+              <p class="helper-text" id="validate-button-hint">両方のファイルを選択すると有効になります。</p>
+              <button
+                type="submit"
+                form="matching-form"
+                class="dads-button"
+                data-type="solid-fill"
+                data-size="md"
+                data-action="validate"
+                data-hx-post="/htmx/validate"
+                data-hx-target="#validate-result-content"
+                aria-describedby="validate-button-hint"
+                disabled
+              >データ確認を実行</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Data validation result + match action -->
+        <div class="stepper-panel" id="panel-2" hidden>
+          <div class="stepper-panel__head">
+            <div>
+              <h1 class="stepper-panel__title">データ確認</h1>
+            </div>
+            <span class="step-status-chip step-status-chip--current" id="panel-2-chip">作業中</span>
+          </div>
+
+          <div class="stepper-panel__body">
+            <section class="dads-surface">
+              <div id="validate-result-content" class="panel-body">
+                <p class="empty-state">データ確認を実行すると、確認結果がここに表示されます。</p>
+              </div>
+            </section>
+          </div>
+
+          <div class="stepper-panel__foot">
+            <button type="button" class="dads-button" data-type="outline" data-size="sm" data-nav-to="1">← 戻る</button>
+            <p class="stepper-panel__foot-meta">次の手順: <strong>マッチング結果</strong></p>
+            <div class="stepper-panel__foot-actions">
+              <div>
+                <button
+                  id="match-button"
+                  class="dads-button"
+                  data-type="solid-fill"
+                  data-size="md"
+                  type="submit"
+                  form="matching-form"
+                  data-action="match"
+                  data-hx-post="/htmx/match"
+                  data-hx-target="#match-result-content"
+                  disabled
+                >マッチングを実行</button>
+                <p class="helper-text helper-text--right">実行には数十秒〜数分かかる場合があります。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 3: Matching result -->
+        <div class="stepper-panel" id="panel-3" hidden>
+          <div class="stepper-panel__head">
+            <div>
+              <h1 class="stepper-panel__title">マッチング結果</h1>
+            </div>
+            <span class="step-status-chip step-status-chip--current" id="panel-3-chip">作業中</span>
+          </div>
+
+          <div class="stepper-panel__body">
+            <section id="match-result" class="dads-surface result-panel">
+              <div class="panel-body">
+                <div id="match-result-content">
+                  <p class="empty-state">マッチングを実行すると、結果がここに表示されます。</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="stepper-panel__foot">
+            <button type="button" class="dads-button" data-type="outline" data-size="sm" data-nav-to="2">← 戻る</button>
+            <p class="stepper-panel__foot-meta" id="panel-3-foot-meta"><strong id="panel-3-complete-msg" hidden>すべての手順が完了しました</strong></p>
+            <div class="stepper-panel__foot-actions"></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <script>
+    (function () {
+      var STEPS = [
+        { n: 1, label: 'ファイルのアップロード' },
+        { n: 2, label: 'データ確認' },
+        { n: 3, label: 'マッチング結果' },
+      ];
+
+      var states = ['current', 'locked', 'locked'];
+      var viewing = 1;
+
+      function render() {
+        var done = states.filter(function (s) { return s === 'done'; }).length;
+        var pct = Math.round((done / STEPS.length) * 100);
+
+        var fill = document.getElementById('stepper-progress-fill');
+        if (fill) fill.style.width = pct + '%';
+        var cnt = document.getElementById('stepper-count');
+        if (cnt) cnt.textContent = done + ' / ' + STEPS.length + ' 完了';
+
+        STEPS.forEach(function (step, i) {
+          var state = states[i];
+          var isViewing = viewing === step.n;
+
+          var btn = document.querySelector('.stepper-step[data-step="' + step.n + '"]');
+          if (btn) {
+            btn.setAttribute('data-state', state);
+            btn.setAttribute('data-viewing', isViewing ? 'true' : 'false');
+            btn.disabled = state === 'locked';
+            if (isViewing) {
+              btn.setAttribute('aria-current', 'step');
+            } else {
+              btn.removeAttribute('aria-current');
+            }
+          }
+
+          var bullet = document.getElementById('step-bullet-' + step.n);
+          if (bullet) bullet.textContent = state === 'done' ? '✓' : step.n;
+
+          var meta = document.getElementById('step-meta-' + step.n);
+          if (meta) {
+            meta.textContent = state === 'done' ? '完了' : state === 'processing' ? '処理中' : state === 'current' ? '作業中' : '未着手';
+          }
+
+          var panel = document.getElementById('panel-' + step.n);
+          if (panel) {
+            if (isViewing) {
+              panel.removeAttribute('hidden');
+            } else {
+              panel.setAttribute('hidden', '');
+            }
+          }
+
+          var chip = document.getElementById('panel-' + step.n + '-chip');
+          if (chip) {
+            if (state === 'done') {
+              chip.textContent = '✓ 完了';
+              chip.className = 'step-status-chip step-status-chip--done';
+            } else if (state === 'processing') {
+              chip.textContent = '処理中';
+              chip.className = 'step-status-chip step-status-chip--current';
+            } else if (state === 'current') {
+              chip.textContent = '作業中';
+              chip.className = 'step-status-chip step-status-chip--current';
+            } else {
+              chip.textContent = '🔒 未着手';
+              chip.className = 'step-status-chip step-status-chip--locked';
+            }
+          }
+        });
+      }
+
+      function goTo(n) {
+        viewing = n;
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function markDone(i) {
+        states[i] = 'done';
+        if (i + 1 < states.length && states[i + 1] === 'locked') {
+          states[i + 1] = 'current';
+        }
+      }
+
+      // Sidebar step navigation (only for done/current steps)
+      document.querySelectorAll('.stepper-step').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var n = parseInt(btn.getAttribute('data-step'), 10);
+          if (states[n - 1] !== 'locked') {
+            goTo(n);
+          }
+        });
+      });
+
+      // Footer nav buttons
+      document.addEventListener('click', function (e) {
+        var navBtn = e.target.closest('[data-nav-to]');
+        if (navBtn) {
+          goTo(parseInt(navBtn.getAttribute('data-nav-to'), 10));
+        }
+      });
+
+      // Navigate to panel 3 as soon as match starts (shows loading state)
+      document.addEventListener('chilm:before-match', function () {
+        if (states[1] !== 'done') markDone(1);
+        states[2] = 'processing';
+        var completeMsg = document.getElementById('panel-3-complete-msg');
+        if (completeMsg) completeMsg.setAttribute('hidden', '');
+        goTo(3);
+      });
+
+      // After validate response
+      document.addEventListener('chilm:after-validate', function (e) {
+        if (e.detail && e.detail.valid) markDone(0);
+        goTo(2);
+      });
+
+      // After match response
+      document.addEventListener('chilm:after-match', function (e) {
+        if (e.detail && e.detail.success) {
+          if (states[1] !== 'done') markDone(1);
+          if (states[2] !== 'done') markDone(2);
+          var completeMsg = document.getElementById('panel-3-complete-msg');
+          if (completeMsg) completeMsg.removeAttribute('hidden');
+        } else {
+          states[2] = 'current';
+        }
+        goTo(3);
+      });
+
+      // Reset stepper when files change
+      document.addEventListener('change', function (e) {
+        if (e.target.type !== 'file') return;
+        if (!e.target.closest('#matching-form')) return;
+        states = ['current', 'locked', 'locked'];
+        var matchContent = document.getElementById('match-result-content');
+        if (matchContent) matchContent.innerHTML = '<p class="empty-state">マッチングを実行すると、結果がここに表示されます。</p>';
+        var completeMsg = document.getElementById('panel-3-complete-msg');
+        if (completeMsg) completeMsg.setAttribute('hidden', '');
+        goTo(1);
+      });
+
+      render();
+    })();
+    </script>
+
+  </body>
+</html>

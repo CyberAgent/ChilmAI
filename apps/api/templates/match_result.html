@@ -1,0 +1,50 @@
+<div class="section-stack">
+  <div class="validate-status">
+    <span class="status-chip" data-status="{% if view.is_success %}success{% else %}error{% endif %}">{{ view.status_label }}</span>
+    <p class="match-summary-text">{{ view.match_summary }}</p>
+  </div>
+  {% if view.breakdown %}
+  <div class="match-breakdown" aria-label="マッチング結果の内訳">
+    <div class="dads-table" role="group" aria-label="年齢別の内訳">
+      <div class="dads-table__caption">年齢別</div>
+      <table class="dads-table__table">
+        <thead>
+          <tr>
+            <th class="dads-table__col-header" scope="col">年齢</th>
+            <th class="dads-table__col-header" scope="col">申請</th>
+            <th class="dads-table__col-header" scope="col">割当</th>
+            <th class="dads-table__col-header" scope="col">割当率</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in view.breakdown.age_rows %}
+          <tr>
+            <th class="dads-table__row-header" scope="row">{{ row.age }}歳</th>
+            <td>{{ row.applied }}</td>
+            <td>{{ row.matched }}</td>
+            <td>{{ row.percentage }}%</td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <th class="dads-table__row-header" scope="row">合計</th>
+            <td>{{ view.breakdown.age_total.applied }}</td>
+            <td>{{ view.breakdown.age_total.matched }}</td>
+            <td>{{ view.breakdown.age_total.percentage }}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  <div class="button-row result-actions">
+    <button
+      type="button"
+      class="dads-button"
+      data-type="outline"
+      data-size="md"
+      data-download-excel="#matching-result-excel"
+      data-download-filename="matching_result.xlsx"
+    >Excelをダウンロード</button>
+  </div>
+</div>
+<div id="matching-result-excel" class="download-source" aria-hidden="true" hidden>{{ matching_excel_b64 }}</div>

@@ -1,0 +1,26 @@
+name: coverage comment
+
+# フォークからの PR では pytest ワークフロー内の GITHUB_TOKEN に
+# コメント権限がないため、workflow_run 経由でカバレッジコメントを投稿する。
+# 同一リポジトリからの PR は pytest ワークフロー内で直接コメントされる。
+on:
+  workflow_run:
+    workflows: ["pytest"]
+    types: [completed]
+
+jobs:
+  post-coverage-comment:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    permissions:
+      pull-requests: write
+      # アーティファクトのダウンロードに必要
+      actions: read
+      # checkout せずにアクションが実行されることを明示するため
+      contents: read
+    steps:
+      - name: Post comment
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

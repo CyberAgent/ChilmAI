@@ -1,0 +1,89 @@
+These notes cover the few things the generated inventory cannot state on its
+own. Everything else -- what ships, at which version, under which license, and
+where its license text lives -- is listed above.
+
+------------------------------------------------------------------------------
+1. ortools 9.8.3296 (Google OR-Tools)
+------------------------------------------------------------------------------
+
+The ortools wheel ships no license file of its own; its metadata declares only
+"Apache Software License". OR-Tools itself is Apache-2.0, but the compiled code
+it ships statically links the components listed in the section above, and two of
+those are weak copyleft:
+
+  * The Coin-OR solvers (CoinUtils, Osi, Clp, Cgl, Cbc) are under EPL-2.0.
+  * Eigen is under MPL-2.0.
+
+On Windows the 9.8 wheel ships no single shared library: each extension module is
+separately statically linked, and the CP-SAT module that ChilmAI uses is one of
+those containing this code.
+
+ChilmAI redistributes the official OR-Tools wheel without modifying it. That
+wheel, however, was not built from the Coin-OR and Eigen release tags directly:
+the OR-Tools v9.8 build fetches CMake-enabled forks of the Coin-OR components
+and applies one of its own patches to each of these components before compiling
+them. Corresponding source code is therefore the fetched tag together with that
+patch, and both are listed for every component in the section above.
+
+The full EPL-2.0 and MPL-2.0 texts ship under licenses/.
+
+GLPK and HiGHS are NOT linked into the distributed wheel, although the upstream
+OR-Tools dependency manifest mentions both. This matters because GLPK is
+GPL-3.0-or-later. Upstream disables both by default, and the shipped Windows
+binaries contain no glp_* or HiGHS symbols. The evidence and the procedure for
+re-confirming it after an ortools bump are in apps/licenses/README.md.
+
+------------------------------------------------------------------------------
+2. tqdm 4.66.5
+------------------------------------------------------------------------------
+
+tqdm is dual-licensed: MPL-2.0 for most files, MIT for the remainder. It is
+redistributed unmodified. Its own license file ships under licenses/tqdm/, and
+the MPL-2.0 text under licenses/MPL-2.0.txt. The corresponding source for the
+MPL-covered files is available at:
+
+  https://github.com/tqdm/tqdm/tree/v4.66.5
+
+------------------------------------------------------------------------------
+3. PyInstaller bootloader 6.21.0
+------------------------------------------------------------------------------
+
+ChilmAI.exe begins with PyInstaller's compiled bootloader. PyInstaller is
+GPL-2.0-or-later, but its Bootloader Exception gives "unlimited permission to
+link or embed compiled bootloader and related files into executables" and to
+distribute the result without restriction. Upstream's own SPDX identifier for
+those files is:
+
+  GPL-2.0-or-later WITH Bootloader-exception
+
+The bootloader is used unmodified. The complete upstream COPYING file --
+including the exception in full -- ships as licenses/PyInstaller-COPYING.txt,
+taken from the v6.21.0 tag that produced this build.
+
+------------------------------------------------------------------------------
+4. The frozen CPython runtime
+------------------------------------------------------------------------------
+
+PyInstaller freezes an entire CPython runtime into the distribution: the
+interpreter, its standard library, and the native DLLs that build links
+(OpenSSL, SQLite, libffi, and the Microsoft Visual C++ runtime). None of it is a
+pip package, so none of it appears in Python package metadata.
+
+Which interpreter gets frozen is decided by the build environment, and different
+builds of the same Python version link different versions of these libraries. So
+the versions in the section above are not pinned here -- they are read from the
+interpreter that was actually frozen, at the moment the distribution was built.
+
+CPython's own LICENSE ships under licenses/runtime/CPython/, copied from that
+same interpreter rather than fetched from a tag. On a Windows build that file
+carries more than the PSF terms: it also states the conditions for the Microsoft
+Distributable Code -- both the Visual C++ runtime and the Universal C Runtime --
+and the terms for bzip2 and Tcl/Tk. Those are therefore covered by it and have
+no separate license text of their own.
+
+How much of the Microsoft redistributable set comes along depends on how the
+interpreter was built, so both runtime families are listed whether or not a
+given build ships every file.
+
+That file does not cover OpenSSL, SQLite or libffi, so each of those ships its
+own upstream license text under licenses/runtime/.

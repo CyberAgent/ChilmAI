@@ -1,0 +1,127 @@
+[build-system]
+requires = ["setuptools>=83.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = 'ChilmAI'
+version = "0.0.0"
+description = 'Generic daycare matching backend and UI'
+readme = 'README.md'
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "TRADEMARK.md"]
+requires-python = '>=3.10,<3.13'
+dependencies = [
+    'numpy==1.26.4',
+    'pandera==0.20.3',
+    'openpyxl==3.1.5',
+    'python-calamine==0.8.2',
+    'ortools==9.8.3296',
+    'pandas==2.2.3',
+    'xlsxwriter==3.2.0',
+    'tqdm==4.66.5',
+    # tomllib は Python 3.11 で標準ライブラリ入り。3.10 では同一 API の後方移植を使う。
+    'tomli==2.4.1; python_version < "3.11"',
+    'fastapi==0.139.0',
+    'jinja2==3.1.6',
+    'uvicorn==0.34.2',
+    'python-multipart==0.0.32',
+    'setuptools==83.0.0',
+]
+
+[project.optional-dependencies]
+package = [
+    'pyinstaller==6.21.0',
+    # 5.0.0 は PEP 639 の License-Expression を読まないため、fastapi / pydantic /
+    # click など 16 パッケージが THIRD-PARTY-NOTICES.txt に UNKNOWN と出る。
+    'pip-licenses==5.5.5',
+]
+test = [
+    'pytest==9.1.1',
+    'pytest-playwright==0.8.0',
+    'pytest-xdist==3.6.1',
+    'pytest-cov==7.1.0',
+    'httpx2==2.5.0',
+]
+format = ['ruff==0.5.7']
+docs = [
+    'mkdocs-material==9.7.7',
+    'mkdocstrings[python]==0.29.1',
+    'mkdocs-redirects==1.2.2',
+]
+
+[project.urls]
+homepage = "https://chilmai.cyberagent.ai/"
+
+[tool.ruff]
+line-length = 108
+target-version = "py310"
+lint.ignore = [
+    "E203",
+    "E231",
+    "E501",
+]
+# cp_use_transfer は star import 前提のレガシーモジュールのため、
+# 当該モジュールに限り F403/F405 を許容する（他モジュールでは有効）。
+lint.per-file-ignores = { "chilmai/algorithm/cp_use_transfer/*" = ["F403", "F405"] }
+exclude = [
+    ".git",
+    ".claude",
+    "__pycache__",
+    "docs",
+    "build",
+    "dist",
+    "venv",
+]
+
+
+# wheel はライブラリ（chilmai）のみ。Web UI とサーバ実装（apps）は
+# リポジトリからの起動と PyInstaller 配布物でのみ提供する。
+[tool.setuptools.packages.find]
+where = ['.']
+include = ['chilmai*']
+
+[tool.setuptools.package-data]
+"chilmai.generic" = ["*.json"]
+
+[tool.pyright]
+include = ['apps', 'chilmai', 'test']
+exclude = ["**/__pycache__"]
+
+
+useLibraryCodeForTypes = true
+
+[tool.pytest.ini_options]
+# apps はインストールされない（wheel は chilmai のみ）ので、テストは
+# リポジトリ直下から import する
+pythonpath = ["."]
+addopts = [
+    "--import-mode=importlib",
+    "-v",
+    "-n",
+    "auto",
+]
+markers = [
+    "browser: mark a test as a browser test",
+    "binary: mark a test as an assembled binary test on Windows",
+]
+filterwarnings = [
+    #openpyxl/worksheet/header_footer.py:48: UserWarning
+    "ignore:Cannot parse header or footer so it will be ignored",
+    #openpyxl/worksheet/_reader.py:329: UserWarning
+    "ignore:Unknown extension is not supported and will be removed",
+]
+
+[tool.coverage.run]
+source = ["chilmai", "apps"]
+# python-coverage-comment-action がパスを解決できるよう相対パスで記録する
+relative_files = true
+omit = [
+    # PyInstaller ビルド専用スクリプトはテスト対象外
+    "apps/packager.py",
+    "apps/api_launcher.py",
+    "apps/pyinstaller_hooks/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+precision = 1

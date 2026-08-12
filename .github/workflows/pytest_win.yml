@@ -1,0 +1,41 @@
+name: pytest windows
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    env:
+      # uv は .python-version(3.11)を setup-python のインタプリタより優先する
+      # ため、マトリクスのバージョンを環境変数で明示する。uv run の暗黙の
+      # 再 sync にも効かせるため、ステップ引数ではなくジョブレベルで設定する。
+      UV_PYTHON: ${{ matrix.python-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
+          cache-suffix: pytest-win
+      - name: Sync dependencies
+        run: uv sync --extra test --extra format --extra package
+      - name: Verify the venv Python matches the matrix
+        run: uv run python -c "import sys; assert '${{ matrix.python-version }}' == f'{sys.version_info[0]}.{sys.version_info[1]}', sys.version"
+      - name: Install Playwright browser
+        run: uv run playwright install chromium
+      - name: Run non-browser tests
+        run: uv run python -m pytest test/ -m 'not (browser or binary)' -n auto
+      - name: Run browser tests
+        run: uv run python -m pytest test/chilmai/browser -m browser -n 1

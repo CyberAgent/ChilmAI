@@ -1,0 +1,77 @@
+name: lint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
+          cache-suffix: lint-ruff
+      - name: Sync dependencies
+        run: uv sync --extra format
+      - name: Run ruff check
+        run: uv run ruff check .
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+  licenses:
+    # Windows ビルド（数分）を待たずにコピーレフト混入を弾くための先出し検査。
+    # 同じ検査は apps/packager.py がビルド前にも実行する。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
+          cache-suffix: lint-licenses
+      - name: Sync dependencies
+        run: uv sync --extra package
+      - name: Check runtime dependencies are free of unreviewed copyleft
+        run: uv run python -c "from apps.packager import verify_no_unreviewed_licenses as c; c()"
+      - name: Check native wheels have been reviewed for bundled third-party code
+        run: uv run python -c "from apps.packager import verify_native_extensions_are_reviewed as c; c()"
+      - name: Check bundled native components have an upstream notice to ship
+        # 汎用の SPDX 条文には著作権行が入らないので、上流原文が無いと帰属表示が
+        # 配られない。scripts/collect_native_notices.py の出力を検査する。
+        run: uv run python -c "from apps.packager import verify_native_component_notices_are_available as c; c()"
+      - name: Check the frozen CPython runtime has a license text to ship
+        # インタプリタ本体と、そこに含まれてくる OpenSSL / SQLite / libffi は
+        # pip のパッケージではないので、他のチェックには引っかからない。
+        # _internal/ の DLL 照合はビルド後にしかできないので Windows ジョブで走る。
+        run: uv run python -c "from apps.packager import verify_runtime_component_notices_are_available as c; c()"
+      - name: Check code bundled inside wheels is permissively licensed
+        # wheel が自分の PEP 770 SBOM で申告している Rust クレートを検査する。
+        # SBOM は OS ごとに異なるため、ここで通っても Windows で通るとは限らない。
+        # 同じ検査を apps/packager.py が Windows ビルド中にも実行する。
+        run: |
+          uv run python -c "
+          from apps.packager import (
+              bundled_crates,
+              verify_bundled_component_licenses, verify_crate_notices_are_available,
+              verify_license_texts_are_available,
+              verify_rust_extensions_declare_their_crates,
+          )
+          crates = bundled_crates()
+          verify_rust_extensions_declare_their_crates(crates)
+          verify_bundled_component_licenses(crates)
+          verify_license_texts_are_available(crates)
+          verify_crate_notices_are_available(crates)
+          "

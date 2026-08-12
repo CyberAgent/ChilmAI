@@ -1,0 +1,9 @@
+<div class="section-stack">
+  <div class="validate-status">
+    <span class="status-chip" data-status="error">エラー</span>
+    <p class="validate-status__message">マッチング処理が完了できませんでした</p>
+  </div>
+  <ul class="message-list" data-tone="error" aria-label="エラー一覧">
+    <li>{% if view.error_code %}[E{{ view.error_code }}] {% endif %}{{ view.error_message }}</li>
+  </ul>
+</div>

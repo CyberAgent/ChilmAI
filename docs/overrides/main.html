@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if page.meta and page.meta.title %}
+    {% set social_title = page.meta.title | striptags ~ " - " ~ config.site_name %}
+  {% elif page.title and not page.is_homepage %}
+    {% set social_title = page.title | striptags ~ " - " ~ config.site_name %}
+  {% else %}
+    {% set social_title = config.site_name %}
+  {% endif %}
+  {% set social_description = "ChilmAIは自治体の保育所利用調整業務における入所選考処理を支援するソフトウェアです" %}
+  {% set social_url = page.canonical_url or config.site_url or page.url %}
+  {% if config.site_url %}
+    {% set social_image = config.site_url.rstrip("/") ~ "/assets/ogp.png" %}
+  {% else %}
+    {% set social_image = "/assets/ogp.png" %}
+  {% endif %}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ social_title }}">
+  <meta property="og:description" content="{{ social_description }}">
+  <meta property="og:url" content="{{ social_url }}">
+  <meta property="og:image" content="{{ social_image }}">
+  <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
