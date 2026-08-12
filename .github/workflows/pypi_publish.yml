@@ -1,0 +1,75 @@
+name: publish to PyPI
+
+# リリースタグを ref に指定して手動起動する（gh workflow run pypi_publish.yml --ref vX.Y.Z）。
+# GITHUB_TOKEN によるタグ push や Release 公開はイベントを発火しないため、
+# push / release トリガーでは起動できない。release_prepare.yml と同趣旨。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: 1
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # 起動には environment "pypi" の保護ルール（レビュアー承認など）が適用される。
+    # PyPI 側の trusted publishing 設定はこの environment 名と一致させること。
+    environment:
+      name: pypi
+      url: https://pypi.org/project/chilmai/
+    permissions:
+      contents: read
+      # PyPI の trusted publishing（OIDC）に必要
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
+          cache-suffix: pypi-publish
+      - name: Validate release tag
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "Run this workflow on a release tag ref, not ${GITHUB_REF_TYPE} ${tag}" >&2
+            exit 1
+          fi
+          if [[ ! "${tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([a-z]+[0-9]+)?([.]post[0-9]+)?([.]dev[0-9]+)?$ ]]; then
+            echo "Invalid release tag: ${tag}" >&2
+            exit 1
+          fi
+          version="$(uv version --short)"
+          if [[ "${tag#v}" != "${version}" ]]; then
+            echo "Tag ${tag} does not match project version ${version}" >&2
+            exit 1
+          fi
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Check license files are bundled in the artifacts
+        run: |
+          sdist="$(ls dist/*.tar.gz)"
+          wheel="$(ls dist/*.whl)"
+          for name in LICENSE NOTICE TRADEMARK.md; do
+            if ! tar -tzf "${sdist}" | grep -q "/${name}$"; then
+              echo "License file missing from sdist: ${name}" >&2
+              exit 1
+            fi
+            if ! unzip -l "${wheel}" | grep -q "${name}"; then
+              echo "License file missing from wheel: ${name}" >&2
+              exit 1
+            fi
+          done
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
