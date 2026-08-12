@@ -137,7 +137,6 @@ class DictBuilder:
         score_lookup: dict[tuple[int, int], int],
         households: list[HouseholdPreference],
         base_scores: dict[int, int],
-        transfer_counts: dict[int, dict[int, int]] | None = None,
     ) -> dict:
         # Build priority lists from the projected daycare set (family combos), not individual pref
         # columns. In sibling cases a child may appear in a combo for a daycare they did not
@@ -157,11 +156,6 @@ class DictBuilder:
         for _, row in daycares_df.iterrows():
             d_id = int(row["daycare_id"])
             recruiting = [int(pd.to_numeric(row[f"capacity_age{age}"])) for age in range(6)]
-            # 転園児が退所すると枠が空くため、転園アウト数を加算して実効定員とする。
-            if transfer_counts and d_id in transfer_counts:
-                for age, count in transfer_counts[d_id].items():
-                    recruiting[age] += count
-
             children_for_d = daycare_children.get(d_id, [])
             priority_child_id_list = [c_id for c_id, _ in children_for_d]
             priority_score_list = [score for _, score in children_for_d]
@@ -172,8 +166,8 @@ class DictBuilder:
                 "share_ages_list": [],
                 "priority_child_id_list": priority_child_id_list,
                 "priority_score_list": priority_score_list,
-                # True: CP容量制約に転園児を含める（update_daycares_attributes内の
-                # total_numbers加算は削除済み。転園アウト分はrecruiting側で加算済み）
+                # True: 転園アウトで空いた枠を他の児童へ再配分する。
+                # 定員への加算は update_daycares_attributes がこのフラグを見て行う。
                 "is_use_transfer": [True] * 6,
             }
         return result

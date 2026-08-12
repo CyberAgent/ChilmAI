@@ -198,21 +198,11 @@ class CpSatMatcher:
         children_dic = DictBuilder.build_children_dic(children, pref_cols)
         base_scores = DictBuilder.build_base_scores(children)
         score_lookup = DictBuilder.build_score_lookup(children, pref_cols, score_cols)
-        transfer_counts: dict[int, dict[int, int]] = {}
-        if "enrolled_daycare_id" in children.columns:
-            for _, row in children.iterrows():
-                enrolled = row.get("enrolled_daycare_id")
-                if enrolled is not None and pd.notna(enrolled):
-                    d_id = int(enrolled)
-                    age = int(row["age"])
-                    transfer_counts.setdefault(d_id, {})
-                    transfer_counts[d_id][age] = transfer_counts[d_id].get(age, 0) + 1
         daycares_dic = DictBuilder.build_daycares_dic(
             daycares,
             score_lookup,
             households,
             base_scores,
-            transfer_counts or None,
         )
         families_dic = DictBuilder.build_families_dic(households)
 
