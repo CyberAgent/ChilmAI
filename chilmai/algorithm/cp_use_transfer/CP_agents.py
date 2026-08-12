@@ -82,7 +82,9 @@ class CP_Daycare:
         self.share_ages_list = share_ages_list
         self.priority = priority_child_id_list
         self.score_list = priority_score_list
-        self.use_transfer = is_use_transfer
+        # use_transfer は is True / is False で判定するため、1 や numpy.bool_ が
+        # 渡ってもどちらかの分岐が必ず成立するよう bool へ正規化する。
+        self.use_transfer = [bool(x) for x in is_use_transfer]
 
         # additional attributes
         self.all_shared_ages = [age for ages in self.share_ages_list for age in ages]

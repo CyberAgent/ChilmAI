@@ -147,10 +147,7 @@ def update_daycares_attributes(children, daycares):
     """
     1) ダミー保育所（UNMATCHED_DAYCARE_ID）の優先順位・スコアリストを更新する
     2) d.priority_age_dic と d.priority_age_share_dic を更新する
-    3) d.total_numbers_share を更新する
-    注意: 転園アウトによる定員調整（転園児ごとの total_numbers += 1）は削除済み。
-    DictBuilder.build_daycares_dic が total_numbers として渡す前に recruiting_numbers へ
-    transfer_out 数を加算しているため、二重計上を避ける。
+    3) d.total_numbers と d.total_numbers_share を更新する
     """
     # update dummy.priority
     dummy = get_agent(UNMATCHED_DAYCARE_ID, daycares)
@@ -165,6 +162,14 @@ def update_daycares_attributes(children, daycares):
     for d in daycares:
         d.update_priority_age_dic(children)
         d.update_priority_age_share_dic(children)
+
+    # update d.total_numbers
+    # 在園児が転園アウトすると枠が空くため、在園先の定員へ加算する。
+    # use_transfer[age] が False の年齢は空いた枠を再配分しないので加算しない。
+    for c in children:
+        initial = get_agent(c.initial_daycare, daycares)
+        if initial.use_transfer[c.age] is True:
+            initial.total_numbers[c.age] += 1
 
     # update d.total_numbers_share
     for d in daycares:
@@ -306,7 +311,9 @@ def check_bp(children_dic, daycares_dic, families_dic, outcome_f):
                                 if xc.assigned_daycare == d:
                                     better_number += 1
 
-                            if better_number + len(C_fpdg) > daycare.recruiting_numbers[g]:
+                            # CP モデルの定員制約と check_feasibility に合わせ、転園アウト
+                            # 込みの total_numbers を閾値にする。
+                            if better_number + len(C_fpdg) > daycare.total_numbers[g]:
                                 bool_fpd[g] = 1
 
                     if sum(bool_fpd) == 0:
