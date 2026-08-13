@@ -39,12 +39,26 @@ ChilmAI を開発者として使い始める手順です。ライブラリとし
 
 ## サンプルデータで実行する
 
-リポジトリには合成データとして以下が含まれています（サンプルデータはリポジトリにのみ含まれるため、ソースコードから始めた場合の手順です）。
+動作確認用の合成データとして、次の 2 ファイルを用意しています。
 
 | ファイル | 内容 |
 |---|---|
-| `sample/申込者データ_デモ.csv` | 申込者データ |
-| `sample/保育所データ_デモ.csv` | 保育所データ |
+| [`申込者データ_デモ.csv`](https://github.com/CyberAgent/ChilmAI/blob/main/sample/申込者データ_デモ.csv) | 申請児童 5 名（うち、きょうだい 1 組・転園希望 1 名） |
+| [`保育所データ_デモ.csv`](https://github.com/CyberAgent/ChilmAI/blob/main/sample/保育所データ_デモ.csv) | 保育所 3 園（3 歳枠のみ・合計 5 枠） |
+
+### サンプルデータを用意する {#prepare-sample-data}
+
+=== "PyPI から始めた場合"
+
+    サンプルデータは PyPI のパッケージに含まれません。上の表のリンク先（GitHub）でファイルを開き、「Download raw file」から 2 ファイルをダウンロードしてください。
+
+    以下では、作業ディレクトリに `sample/` を作成して 2 ファイルを保存した状態を前提とします。別の場所に保存した場合は、次のコードのパスをその保存先に合わせて書き換えてください。
+
+=== "ソースコードから始めた場合"
+
+    2 ファイルはリポジトリの `sample/` に含まれています。追加の準備は不要です。以下ではリポジトリ直下を作業ディレクトリとして進めます。
+
+### マッチングを実行する {#run-matching}
 
 Python API からマッチングを実行します。
 
@@ -54,13 +68,16 @@ from pathlib import Path
 from chilmai.generic.config import DEFAULT_CONFIG
 from chilmai.generic.service import MatchingService
 
-root = Path(".")
+# CSV の保存先に合わせて書き換えてください
+children_file = Path("sample/申込者データ_デモ.csv")
+daycares_file = Path("sample/保育所データ_デモ.csv")
+
 service = MatchingService()
 
 result = service.match(
-    children_file_bytes=(root / "sample/申込者データ_デモ.csv").read_bytes(),
+    children_file_bytes=children_file.read_bytes(),
     children_file_format="csv",
-    daycares_file_bytes=(root / "sample/保育所データ_デモ.csv").read_bytes(),
+    daycares_file_bytes=daycares_file.read_bytes(),
     daycares_file_format="csv",
     mapping=DEFAULT_CONFIG,
     solver_config={"max_time_seconds": 10},
@@ -69,7 +86,7 @@ result = service.match(
 print(result["matched_children"])
 ```
 
-リポジトリ直下にスクリプトとして保存し、`uv run python <ファイル名>` で実行します。
+作業ディレクトリにスクリプトとして保存し、`python <ファイル名>` または `uv run <ファイル名>` で実行します。
 
 `match()` はマッチング結果を含む辞書を返します。戻り値の構造の詳細と、入力データに問題がないか事前に確認する `validate()` については [Python API](../api/python.md) を参照してください。
 

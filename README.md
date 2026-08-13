@@ -57,9 +57,15 @@ Python 3.10 〜 3.12 の環境に、PyPI からインストールします。パ
 pip install chilmai
 ```
 
+[uv](https://docs.astral.sh/uv/) でプロジェクトに追加する場合は次のとおりです。
+
+```bash
+uv add chilmai
+```
+
 ### ソースコードから利用する
 
-Python 3.10 〜 3.12、Git、[uv](https://docs.astral.sh/uv/) を用意して、依存関係をインストールします。
+Git、Python 3.10 〜 3.12、[uv](https://docs.astral.sh/uv/) を用意して、依存関係をインストールします。Web UI を利用する場合は、Microsoft Edge や Google Chrome などのモダンブラウザも必要です。
 
 ```bash
 git clone https://github.com/CyberAgent/ChilmAI.git
