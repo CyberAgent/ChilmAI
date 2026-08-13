@@ -33,7 +33,24 @@ class MatchingService:
     """パース、検証、マッチング、結果整形をまとめて扱う。
 
     FastAPI の HTTP レイヤーを経由せずに ChilmAI を実行したいアプリケーション向けの
-    推奨 Python API エントリポイント。
+    推奨 Python API エントリポイント::
+
+        from chilmai.generic.config import DEFAULT_CONFIG
+        from chilmai.generic.service import MatchingService
+
+        service = MatchingService()
+        result = service.match(
+            children_file_bytes=children_bytes,
+            children_file_format="csv",
+            daycares_file_bytes=daycares_bytes,
+            daycares_file_format="csv",
+            mapping=DEFAULT_CONFIG,
+        )
+
+    Args:
+        preprocessor: 自治体カスタム前処理。``None`` の場合はすべてパススルーの
+            ``BasePreprocessor`` を使う。前処理が呼ばれる順序は
+            ``BasePreprocessor`` を参照。
     """
 
     def __init__(self, preprocessor: BasePreprocessor | None = None) -> None:
@@ -50,7 +67,19 @@ class MatchingService:
         children_df: pd.DataFrame,
         daycares_df: pd.DataFrame,
     ) -> tuple[pd.DataFrame | None, list[dict[str, Any]]]:
-        """組み合わせファイルをパースして検証する。成功時は (DataFrame, [])、失敗時は (None, errors)。"""
+        """組み合わせファイルをパースして検証する。
+
+        Args:
+            combination_file_bytes: 組み合わせファイルの内容。
+            combination_file_format: ``"csv"`` または ``"xlsx"``。
+            mapping: ``"combination"``・``"children"`` キーを含む列名マッピング。
+            children_df: 相互参照の検証に使う申込者データ（内部列名）。
+            daycares_df: 相互参照の検証に使う保育所データ（内部列名）。
+
+        Returns:
+            成功時は ``(組み合わせ DataFrame, [])``、
+            パース・検証に失敗した場合は ``(None, エラーの dict リスト)``。
+        """
         try:
             combination_df = self.parser.parse_combination(
                 file_bytes=combination_file_bytes,
@@ -83,7 +112,37 @@ class MatchingService:
     ) -> dict[str, Any]:
         """アップロードされた申込者ファイルと保育所ファイルを検証する。
 
-        公開 `/validate` HTTP エンドポイントと同じ構造を返す。
+        マッチングは実行せず、パース → 自治体カスタムバリデーション →
+        ChilmAI 汎用バリデーションまでを行う。公開 ``/validate`` HTTP エンドポイントと
+        同じ構造を返す。すべてキーワード引数で渡す。
+
+        Args:
+            children_file_bytes: 申込者ファイルの内容。
+            children_file_format: 申込者ファイルの形式。``"csv"`` または ``"xlsx"``。
+            daycares_file_bytes: 保育所ファイルの内容。
+            daycares_file_format: 保育所ファイルの形式。``"csv"`` または ``"xlsx"``。
+            mapping: 列名マッピング。``"children"``・``"daycares"``・``"combination"``・
+                ``"output"`` をキーに、``{内部列名: 元ファイルの列名}`` の dict を持つ。
+                既定値は ``chilmai.generic.config.DEFAULT_CONFIG``。
+            combination_file_bytes: 組み合わせファイルの内容。任意。
+            combination_file_format: 組み合わせファイルの形式。任意。
+                ``combination_file_bytes`` と両方指定したときのみ組み合わせを検証する。
+
+        Returns:
+            以下のキーを持つ dict:
+
+            - ``is_valid``（bool）: エラーがなければ ``True``。
+            - ``errors``（list[dict]）: エラーのリスト。各要素は
+                ``{"message": str, "type": str, "code": int | None}``。
+            - ``warnings``（list[str]）: 警告メッセージのリスト。
+            - ``summary``（dict）: ``children_count``・``daycares_count`` の件数集計。
+
+            自治体カスタムバリデーションまたは組み合わせファイルの検証で
+            エラーが出た場合は、その時点で ``is_valid=False`` を返し、
+            ChilmAI 汎用バリデーションは実行しない。
+
+        Raises:
+            ChilmError: ファイルのパースに失敗した場合（形式不正、必要な列がないなど）。
         """
         children_df = self.parser.parse_children(
             file_bytes=children_file_bytes,
@@ -151,8 +210,50 @@ class MatchingService:
     ) -> dict[str, Any]:
         """アップロードされたファイルを検証し、CP-SAT マッチングを実行する。
 
-        公開 `/match` HTTP エンドポイントと同じ中核結果に加え、
-        Web UI の Excel 出力で使う出力列・行データを返す。
+        公開 ``/match`` HTTP エンドポイントと同じ中核結果に加え、
+        Web UI の Excel 出力で使う出力列・行データを返す。すべてキーワード引数で渡す。
+
+        Args:
+            children_file_bytes: 申込者ファイルの内容。
+            children_file_format: 申込者ファイルの形式。``"csv"`` または ``"xlsx"``。
+            daycares_file_bytes: 保育所ファイルの内容。
+            daycares_file_format: 保育所ファイルの形式。``"csv"`` または ``"xlsx"``。
+            mapping: 列名マッピング。``"children"``・``"daycares"``・``"combination"``・
+                ``"output"`` をキーに、``{内部列名: 元ファイルの列名}`` の dict を持つ。
+                既定値は ``chilmai.generic.config.DEFAULT_CONFIG``。
+            solver_config: ソルバー設定。``max_time_seconds``（float、既定 ``10.0``）で
+                CP-SAT の打ち切り時間を指定する。省略時は既定値を使う。
+            combination_file_bytes: 組み合わせファイルの内容。任意。
+            combination_file_format: 組み合わせファイルの形式。任意。
+                ``combination_file_bytes`` と両方指定したときのみ組み合わせを使う。
+
+        Returns:
+            以下のキーを持つ dict:
+
+            - ``matching_result_dict``（dict[str, str | None]）: 申込者 ID → 内定した
+                保育所 ID。不成立の申込者は ``None``。
+            - ``household_result_dict``（dict）: 世帯 ID → その世帯の
+                ``child_ids``・``assigned``・``selected_combo`` など。
+            - ``daycare_name_dict``（dict[str, str]）: 保育所 ID → 保育所名。
+            - ``matched_children``（dict）: 成立件数の集計。``total``・``only_child``・
+                ``siblings``・``applied_total``・``by_age``（年齢別の内訳）。
+            - ``transfer_back_count``（int）: 在籍中の保育所に再度内定した件数。
+                該当がある場合のみ含まれる。
+                ``mapping["output"]["exclude_transfer_back"] == "true"`` のときは
+                該当申込者の結果を空欄に落とし、``matched_children`` からも差し引く。
+            - ``meta``（dict）: ``algorithm``・``is_optimal`` などの実行情報。
+            - ``output_columns``（list[str]）: 出力ファイルの列名リスト
+                （元の申込ファイル全列 + 結果列）。
+            - ``output_rows``（list[dict]）: 出力ファイルの行データ。
+                ``BasePreprocessor.transform_output`` の加工後の内容。
+
+        Raises:
+            ValueError: バリデーションエラーで中断した場合。第 2 引数に
+                ``validate()`` と同じ構造の dict（``is_valid``・``errors``・
+                ``warnings``・``summary``）が入る。
+            ChilmError: ファイルのパースに失敗した場合、申込者ファイルに
+                申請者 ID 列が見つからない場合、出力列名の設定が重複している場合、
+                出力列名が申込者ファイルの既存列と衝突する場合。
         """
         children_df = self.parser.parse_children(
             file_bytes=children_file_bytes,
