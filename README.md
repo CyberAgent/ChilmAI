@@ -45,7 +45,7 @@ ChilmAI は、自治体の保育所利用調整における入所選考処理を
 
 ### Windows で Web UI を試す
 
-Windows 11（64-bit）では、[GitHub Releases](https://github.com/CyberAgent/ChilmAI/releases) の `ChilmAI-vX.Y.Z.zip` を展開し、`ChilmAI.exe` を実行すると Web UI を利用できます。インストールや起動時の注意点は[自治体の方へのクイックスタート](https://cyberagent.github.io/ChilmAI/reference/web-ui/quickstart/)を参照してください。
+Windows 11（64-bit）では、最新リリースの [ChilmAI-latest.zip](https://github.com/CyberAgent/ChilmAI/releases/latest/download/ChilmAI-latest.zip) をダウンロードして展開し、`ChilmAI.exe` を実行すると Web UI を利用できます。インストールや起動時の注意点は[自治体の方へのクイックスタート](https://cyberagent.github.io/ChilmAI/reference/web-ui/quickstart/)を参照してください。
 
 ### ライブラリとして利用する
 

@@ -56,6 +56,9 @@ app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 templates.env.globals["is_packaged"] = os.getenv("CHILMAI_PACKAGED") == "1"
+# 配布 ZIP はアセット名を ChilmAI-latest.zip に固定していてバージョンがファイル名
+# から分からないため、利用中のバージョンは画面ヘッダーで確認できるようにする。
+templates.env.globals["chilmai_version"] = CHILMAI_VERSION
 
 
 def _profile_display(name: str | None) -> str:

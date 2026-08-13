@@ -855,3 +855,16 @@ def test_top_page_is_not_customized_when_only_extra_default_profile(tmp_path, mo
     assert resp.status_code == 200
     # 未カスタマイズ時にだけ表示される案内文。
     assert "項目名は" in resp.text and "デフォルト設定" in resp.text
+
+
+@pytest.mark.parametrize("path", ["/", "/settings"])
+def test_pages_show_chilmai_version_in_header(path: str):
+    """配布 ZIP は固定名（ChilmAI-latest.zip）で版が分からないため、
+    トップ画面と設定画面のヘッダーにバージョンを表示する。"""
+    from apps.version import CHILMAI_VERSION
+
+    client = TestClient(app)
+    resp = client.get(path)
+    assert resp.status_code == 200
+    assert 'class="app-version"' in resp.text
+    assert f"v{CHILMAI_VERSION}" in resp.text

@@ -24,11 +24,16 @@ Windows 版のビルドには Python 3.11 を使用します。ChilmAI の開発
 
 ビルドが成功すると、次のファイルを添付した GitHub Release が公開されます。
 
-- `ChilmAI-vX.Y.Z.zip`: `ChilmAI.exe` と実行に必要なファイル一式
-- `ChilmAI-vX.Y.Z.zip.sha256`: ZIP ファイルの整合性を確認するための SHA-256 ハッシュ
+- `ChilmAI-latest.zip`: `ChilmAI.exe` と実行に必要なファイル一式（ZIP 内のルートフォルダは `ChilmAI-vX.Y.Z`）
+- `ChilmAI-latest.zip.sha256`: ZIP ファイルの整合性を確認するための SHA-256 ハッシュ
+
+添付ファイル名は意図的にバージョンを含めない固定名にしています。GitHub の `releases/latest/download/<ファイル名>` はファイル名の完全一致で最新リリースに解決されるため、固定名にすることで、常に最新バージョンを指す次の永続リンクをドキュメントに記載できます。バージョンは、リリースのタグ（`vX.Y.Z`）・ZIP 内のルートフォルダ名・Web UI のヘッダー表示で確認します。
+
+- <https://github.com/CyberAgent/ChilmAI/releases/latest/download/ChilmAI-latest.zip>
+- <https://github.com/CyberAgent/ChilmAI/releases/latest/download/ChilmAI-latest.zip.sha256>
 
 リリースノートは、前回のリリース以降の変更内容をもとに自動生成されます。
 
 ## リリース版を利用する
 
-[GitHub Releases](https://github.com/CyberAgent/ChilmAI/releases) から ZIP ファイルをダウンロードして展開し、`ChilmAI/ChilmAI.exe` を実行します。詳しい手順は[自治体の方へのクイックスタート](../reference/web-ui/quickstart.md)を参照してください。
+最新バージョンの [ChilmAI-latest.zip](https://github.com/CyberAgent/ChilmAI/releases/latest/download/ChilmAI-latest.zip) をダウンロードして展開し、`ChilmAI-vX.Y.Z/ChilmAI.exe` を実行します。詳しい手順は[自治体の方へのクイックスタート](../reference/web-ui/quickstart.md)を参照してください。
