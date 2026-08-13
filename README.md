@@ -23,7 +23,7 @@
 | chilmai/generic/matcher.py                               |      173 |        3 |     98.3% |   229-233 |
 | chilmai/generic/parser.py                                |      158 |       11 |     93.0% |136, 149, 190, 252, 255, 277, 279, 284, 292, 294, 299 |
 | chilmai/generic/preprocessor.py                          |       27 |        0 |    100.0% |           |
-| chilmai/generic/service.py                               |      131 |        4 |     96.9% |60-61, 194, 236 |
+| chilmai/generic/service.py                               |      131 |        4 |     96.9% |89-90, 295, 337 |
 | chilmai/generic/sibling\_pref\_patterns.py               |       96 |        1 |     99.0% |        42 |
 | chilmai/generic/validator.py                             |      289 |       19 |     93.4% |66, 130-131, 173-174, 231-239, 535-542, 544-551, 557-559, 612, 618, 643-644 |
 | **TOTAL**                                                | **2425** |  **195** | **92.0%** |           |
