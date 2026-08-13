@@ -51,6 +51,7 @@ docs = [
 
 [project.urls]
 homepage = "https://chilmai.cyberagent.ai/"
+documentation = "https://cyberagent.github.io/ChilmAI/"
 
 [tool.ruff]
 line-length = 108
