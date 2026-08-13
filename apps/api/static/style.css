@@ -1613,6 +1613,17 @@ a:active {
   flex-shrink: 0;
 }
 
+/* 配布 ZIP は固定名（ChilmAI-latest.zip）でバージョンが分からないため、
+   利用中のバージョンをヘッダーに常時表示する */
+.app-version {
+  font-size: 0.75rem;
+  font-weight: bold;
+  font-family: var(--font-family-sans);
+  color: var(--color-neutral-solid-gray-600);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
 a.config-link {
   display: inline-flex;
   align-items: center;

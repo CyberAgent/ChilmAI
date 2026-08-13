@@ -92,14 +92,22 @@ jobs:
         # 実行して検証できるため（PowerShell 版は CRLF と scalar/array の扱いで
         # 3 回落とした）。
         run: uv run python scripts/check_bundled_notices.py dist/ChilmAI
+      # アセット名はバージョンを含めず固定にする。GitHub の
+      # releases/latest/download/<アセット名> はアセット名の完全一致で解決する
+      # ため、固定名にすることで常に最新リリースを指す永続リンクを README や
+      # ドキュメントに書ける。バージョンはリリースのタグ（vX.Y.Z）・ZIP 内の
+      # ルートフォルダ名・Web UI のヘッダー表示で追跡する。
       - name: Compress dist directory
         shell: pwsh
         run: |
+          # ZIP 内のルートフォルダにはバージョンを含める。アセット名が固定でも、
+          # 展開後のフォルダ名から手元のバージョンを識別できるようにする。
           $tag = "${{ steps.release.outputs.tag }}"
-          $zipPath = "dist/ChilmAI-${tag}.zip"
-          Compress-Archive -Path dist/ChilmAI -DestinationPath $zipPath
+          Rename-Item -Path dist/ChilmAI -NewName "ChilmAI-${tag}"
+          $zipPath = "dist/ChilmAI-latest.zip"
+          Compress-Archive -Path "dist/ChilmAI-${tag}" -DestinationPath $zipPath
           $hash = Get-FileHash -Algorithm SHA256 $zipPath
-          "$($hash.Hash.ToLower())  ChilmAI-${tag}.zip" | Set-Content -Path "${zipPath}.sha256" -Encoding ASCII
+          "$($hash.Hash.ToLower())  ChilmAI-latest.zip" | Set-Content -Path "${zipPath}.sha256" -Encoding ASCII
       - name: Create draft GitHub Release
         shell: bash
         env:
@@ -117,8 +125,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ steps.release.outputs.tag }}" \
-            "dist/ChilmAI-${{ steps.release.outputs.tag }}.zip" \
-            "dist/ChilmAI-${{ steps.release.outputs.tag }}.zip.sha256" \
+            "dist/ChilmAI-latest.zip" \
+            "dist/ChilmAI-latest.zip.sha256" \
             --repo="$GITHUB_REPOSITORY"
       - name: Publish GitHub Release
         shell: bash

@@ -12,7 +12,7 @@ ChilmAI が利用する Pandas、OR-Tools、FastAPI などの依存ライブラ�
 
 ## Windows 配布物に含まれるライセンス
 
-ソースコードから利用する場合、依存関係は利用者自身がインストールします。一方 [GitHub Releases](https://github.com/CyberAgent/ChilmAI/releases) の `ChilmAI-vX.Y.Z.zip` は依存パッケージとネイティブコードそのものを再配布するため、`ChilmAI.exe` と並べて以下を同梱しています。
+ソースコードから利用する場合、依存関係は利用者自身がインストールします。一方 [GitHub Releases](https://github.com/CyberAgent/ChilmAI/releases) の `ChilmAI-latest.zip` は依存パッケージとネイティブコードそのものを再配布するため、`ChilmAI.exe` と並べて以下を同梱しています。
 
 | 同梱物 | 内容 |
 | --- | --- |
