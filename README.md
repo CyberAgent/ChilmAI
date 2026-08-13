@@ -1,7 +1,7 @@
 # ChilmAI
 
 <p align="center">
-  <img src="docs/assets/logo_yoko_black.svg" alt="ChilmAI" width="360">
+  <img src="https://cyberagent.github.io/ChilmAI/assets/logo_yoko_black.svg" alt="ChilmAI" width="360">
 </p>
 
 <p align="center">
@@ -14,8 +14,9 @@
   <a href="https://github.com/CyberAgent/ChilmAI/tree/python-coverage-comment-action-data">
     <img src="https://github.com/CyberAgent/ChilmAI/raw/python-coverage-comment-action-data/badge.svg" alt="coverage">
   </a>
+  <br>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python 3.10-3.12">
-  <a href="LICENSE">
+  <a href="https://cyberagent.github.io/ChilmAI/reference/license/">
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
   </a>
   <a href="https://arxiv.org/abs/2401.07761">
@@ -79,8 +80,8 @@ Python API のサンプルは [インストールと実行](https://cyberagent.g
 
 ## コントリビューション
 
-バグ報告、機能提案、ドキュメント改善、Pull Request を歓迎します。参加方法は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。セキュリティ上の懸念は公開 Issue に投稿せず、[SECURITY.md](SECURITY.md) に記載された方法で報告してください。
+バグ報告、機能提案、ドキュメント改善、Pull Request を歓迎します。参加方法は [コントリビューション](https://cyberagent.github.io/ChilmAI/development/contributing/) を参照してください。セキュリティ上の懸念は公開 Issue に投稿せず、[セキュリティ](https://cyberagent.github.io/ChilmAI/reference/security/) に記載された方法で報告してください。
 
 ## ライセンス
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](https://cyberagent.github.io/ChilmAI/reference/license/)

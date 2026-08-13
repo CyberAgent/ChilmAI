@@ -5,12 +5,15 @@
 </p>
 
 <p align="center">
-  <!-- <a href="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest.yml">
+  <a href="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest.yml">
     <img src="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest.yml/badge.svg?branch=main" alt="pytest">
   </a>
   <a href="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest_win.yml">
     <img src="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest_win.yml/badge.svg?branch=main" alt="pytest windows">
-  </a> -->
+  </a>
+  <a href="https://github.com/CyberAgent/ChilmAI/tree/python-coverage-comment-action-data">
+    <img src="https://github.com/CyberAgent/ChilmAI/raw/python-coverage-comment-action-data/badge.svg" alt="coverage">
+  </a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python 3.10-3.12">
   <a href="https://github.com/CyberAgent/ChilmAI/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">

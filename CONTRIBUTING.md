@@ -89,7 +89,7 @@ browser テストを初めて実行する場合は、事前に Playwright の Ch
 uv run --extra docs mkdocs build --strict -f mkdocs.yml
 ```
 
-テストの詳細は [テスト](docs/development/testing.md) を参照してください。
+テストの詳細は [テスト](https://cyberagent.github.io/ChilmAI/development/testing/) を参照してください。
 
 ## Pull Request を送る
 
