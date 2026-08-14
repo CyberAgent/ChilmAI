@@ -10,6 +10,25 @@ readme = 'README.md'
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "TRADEMARK.md"]
 requires-python = '>=3.10,<3.13'
+# PyPI プロジェクトページの「分類」に表示される Trove classifier。
+# ライセンスは PEP 639 の license 式で宣言済みのため、License :: 分類は付けない
+# （setuptools が license 式との併用をエラーにする）。
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: Japanese",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     'numpy==1.26.4',
     'pandera==0.20.3',
