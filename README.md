@@ -15,6 +15,9 @@
     <img src="https://github.com/CyberAgent/ChilmAI/raw/python-coverage-comment-action-data/badge.svg" alt="coverage">
   </a>
   <br>
+  <a href="https://pypi.org/project/chilmai/">
+    <img src="https://img.shields.io/pypi/v/chilmai" alt="PyPI">
+  </a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python 3.10-3.12">
   <a href="https://cyberagent.github.io/ChilmAI/reference/license/">
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
@@ -49,9 +52,7 @@ Windows 11（64-bit）では、最新リリースの [ChilmAI-latest.zip](https:
 
 ### ライブラリとして利用する
 
-Python 3.10 〜 3.12 の環境に、PyPI からインストールします。パッケージに含まれるのはコアライブラリ（`chilmai`）のみで、Web UI・HTTP API のリファレンス実装（`apps/`）とサンプルデータは含まれません。
-
-<!-- TODO(PyPI 公開後に確定): 公開を確認のうえ、プロジェクトページ（例: https://pypi.org/project/chilmai/）へのリンクをここに追加する -->
+Python 3.10 〜 3.12 の環境に、[PyPI](https://pypi.org/project/chilmai/) からインストールします。パッケージに含まれるのはコアライブラリ（`chilmai`）のみで、Web UI・HTTP API のリファレンス実装（`apps/`）とサンプルデータは含まれません。
 
 ```bash
 pip install chilmai
@@ -86,7 +87,7 @@ Python API のサンプルは [インストールと実行](https://cyberagent.g
 
 ## コントリビューション
 
-バグ報告、機能提案、ドキュメント改善、Pull Request を歓迎します。参加方法は [コントリビューション](https://cyberagent.github.io/ChilmAI/development/contributing/) を参照してください。セキュリティ上の懸念は公開 Issue に投稿せず、[セキュリティ](https://cyberagent.github.io/ChilmAI/reference/security/) に記載された方法で報告してください。
+バグ報告、機能提案、ドキュメント改善、Pull Request を歓迎します。参加方法は [コントリビューション](https://cyberagent.github.io/ChilmAI/development/contributing/) を参照してください。コミュニティでのやり取りには [行動規範](CODE_OF_CONDUCT.md)（[日本語訳](https://cyberagent.github.io/ChilmAI/development/code-of-conduct/)）が適用されます。セキュリティ上の懸念は公開 Issue に投稿せず、[セキュリティ](https://cyberagent.github.io/ChilmAI/reference/security/) に記載された方法で報告してください。
 
 ## ライセンス
 

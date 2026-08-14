@@ -4,6 +4,10 @@ ChilmAI へのコントリビューションに興味を持っていただき、
 
 ## 始める前に
 
+### 行動規範
+
+Issue、Pull Request、コメントなど、ChilmAI のコミュニティでのやり取りには [行動規範](CODE_OF_CONDUCT.md) が適用されます。日本語訳は [行動規範（日本語）](https://cyberagent.github.io/ChilmAI/development/code-of-conduct/) を参照してください。
+
 ### 対象範囲
 
 ChilmAI の主な開発対象は以下です。
