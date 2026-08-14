@@ -44,6 +44,7 @@ nav:
       - カスタマイズ: development/customization.md
   - 開発に参加する:
       - コントリビューション: development/contributing.md
+      - 行動規範: development/code-of-conduct.md
       - アーキテクチャ: development/architecture.md
       - テスト: development/testing.md
       - リリースフロー: development/workflows.md
