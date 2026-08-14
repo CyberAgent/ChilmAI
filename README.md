@@ -6,10 +6,10 @@
 
 <p align="center">
   <a href="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest.yml">
-    <img src="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest.yml/badge.svg?branch=main" alt="pytest">
+    <img src="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest.yml/badge.svg" alt="pytest">
   </a>
   <a href="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest_win.yml">
-    <img src="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest_win.yml/badge.svg?branch=main" alt="pytest windows">
+    <img src="https://github.com/CyberAgent/ChilmAI/actions/workflows/pytest_win.yml/badge.svg" alt="pytest windows">
   </a>
   <a href="https://github.com/CyberAgent/ChilmAI/tree/python-coverage-comment-action-data">
     <img src="https://github.com/CyberAgent/ChilmAI/raw/python-coverage-comment-action-data/badge.svg" alt="coverage">
