@@ -1704,11 +1704,29 @@ def generate_third_party_notices(dist_dir: Path) -> None:
 
 
 if __name__ == "__main__":
+    from importlib.util import find_spec
+
     from PyInstaller.__main__ import run
 
     # ビルドは数分かかるので、ライセンス検査は先に済ませて早く落とす。
     verify_no_unreviewed_licenses()
     verify_native_extensions_are_reviewed()
+
+    # ortools の拡張モジュールは ortools/.libs の共有 DLL（abseil_dll.dll、
+    # libprotobuf.dll ほか）を import する。PyInstaller の依存解決は最終的に
+    # PATH の探索へフォールバックするが（import 時の add_dll_directory / PATH
+    # 変更は記録するものの、ortools は絶対パスで WinDLL するだけなのでどちらにも
+    # 乗らない）、PATH 上に同名の無関係な DLL を持つ環境（GitHub Actions の
+    # Windows ランナーなど）ではそちらが解決され、バージョン違いの DLL が
+    # _internal/ 直下に混入する。wheel 自身の .libs を PATH の先頭に足して、
+    # 常に正しいコピーが解決されるようにする。解決先が site-packages 配下に
+    # なるので、配置も ortools/.libs のまま保たれ、hook-ortools.py の収集分と
+    # 重複しない。
+    ortools_spec = find_spec("ortools")
+    if ortools_spec is not None and ortools_spec.origin:
+        ortools_libs = Path(ortools_spec.origin).parent / ".libs"
+        if ortools_libs.is_dir():
+            os.environ["PATH"] = os.pathsep.join([str(ortools_libs), os.environ.get("PATH", "")])
 
     run(build_pyi_args())
     dist_dir = ROOT / "dist" / "ChilmAI"
