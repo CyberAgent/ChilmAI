@@ -3,34 +3,40 @@ own. Everything else -- what ships, at which version, under which license, and
 where its license text lives -- is listed above.
 
 ------------------------------------------------------------------------------
-1. ortools 9.8.3296 (Google OR-Tools)
+1. ortools 9.15.6755 (Google OR-Tools)
 ------------------------------------------------------------------------------
 
-The ortools wheel ships no license file of its own; its metadata declares only
-"Apache Software License". OR-Tools itself is Apache-2.0, but the compiled code
-it ships statically links the components listed in the section above, and two of
-those are weak copyleft:
+OR-Tools itself is Apache-2.0 and its wheel ships its own LICENSE file. The
+compiled code it ships also contains the components listed in the section
+above, and two of those are weak copyleft:
 
   * The Coin-OR solvers (CoinUtils, Osi, Clp, Cgl, Cbc) are under EPL-2.0.
   * Eigen is under MPL-2.0.
 
-On Windows the 9.8 wheel ships no single shared library: each extension module is
-separately statically linked, and the CP-SAT module that ChilmAI uses is one of
-those containing this code.
+The 9.15 Windows wheel places shared libraries under
+ortools/.libs/: ortools.dll (which statically links the Coin-OR solvers and
+Eigen), libscip.dll (which statically links SoPlex and parts of Boost),
+highs.dll, libprotobuf.dll, libutf8_validity.dll, abseil_dll.dll, re2.dll,
+zlib1.dll and bz2.dll. The extension modules, including the CP-SAT module that
+ChilmAI uses, are thin wrappers that load these libraries.
 
 ChilmAI redistributes the official OR-Tools wheel without modifying it. That
 wheel, however, was not built from the Coin-OR and Eigen release tags directly:
-the OR-Tools v9.8 build fetches CMake-enabled forks of the Coin-OR components
-and applies one of its own patches to each of these components before compiling
-them. Corresponding source code is therefore the fetched tag together with that
-patch, and both are listed for every component in the section above.
+the OR-Tools v9.15 build fetches CMake-enabled forks of the Coin-OR components
+and applies one of its own patches to most components before compiling them.
+Corresponding source code is therefore the fetched tag together with that
+patch, and both are listed for every component in the section above. bzip2 is
+fetched from its upstream repository's master branch (upstream comments that
+this corresponds to bzip2 1.0.8 but pins no tag), so its exact revision cannot
+be stated; that fact is recorded as-is.
 
 The full EPL-2.0 and MPL-2.0 texts ship under licenses/.
 
-GLPK and HiGHS are NOT linked into the distributed wheel, although the upstream
-OR-Tools dependency manifest mentions both. This matters because GLPK is
-GPL-3.0-or-later. Upstream disables both by default, and the shipped Windows
-binaries contain no glp_* or HiGHS symbols. The evidence and the procedure for
+HiGHS (MIT) is linked and shipped as highs.dll. GLPK is NOT linked into the
+distributed wheel, although the upstream OR-Tools dependency manifest mentions
+it. This matters because GLPK is
+GPL-3.0-or-later. Upstream disables it by default, and the shipped Windows
+binaries contain no glp_* symbols. The evidence and the procedure for
 re-confirming it after an ortools bump are in apps/licenses/README.md.
 
 ------------------------------------------------------------------------------

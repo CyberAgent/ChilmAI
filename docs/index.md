@@ -18,7 +18,7 @@
   <a href="https://pypi.org/project/chilmai/">
     <img src="https://img.shields.io/pypi/v/chilmai" alt="PyPI">
   </a>
-  <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python 3.10-3.12">
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue" alt="Python 3.11-3.14">
   <a href="https://github.com/CyberAgent/ChilmAI/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
   </a>

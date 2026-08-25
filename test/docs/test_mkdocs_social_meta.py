@@ -56,7 +56,7 @@ def test_docs_uses_branding_and_social_meta() -> None:
     assert "javascripts/chilmai-search.js" in mkdocs_config
     assert "assets/favicon.svg" in mkdocs_config
     assert "assets/logo_yoko_black.svg" in index
-    assert "img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" in index
+    assert "img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue" in index
     assert "img.shields.io/badge/license-Apache--2.0-blue" in index
 
     for path in [

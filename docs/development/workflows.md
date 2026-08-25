@@ -20,7 +20,7 @@ ChilmAI の Windows 向け配布物は、2 つの GitHub Actions ワークフロ
 
 [`release_tag.yml`](https://github.com/CyberAgent/ChilmAI/blob/main/.github/workflows/release_tag.yml) は、リリースタグとプロジェクトのバージョンが一致することを確認した後、Windows 上で ChilmAI をビルドします。
 
-Windows 版のビルドには Python 3.11 を使用します。ChilmAI の開発環境は Python 3.10 〜 3.12 をサポートしていますが、配布バイナリに同梱される Python ランタイムは 3.11 です。プルリクエストごとにビルドを検証する [`pyinstaller_build.yml`](https://github.com/CyberAgent/ChilmAI/blob/main/.github/workflows/pyinstaller_build.yml) も同じ Python 3.11 を使用します。
+Windows 版のビルドには Python 3.11 を使用します。ChilmAI の開発環境は Python 3.11 〜 3.14 をサポートしていますが、配布バイナリに同梱される Python ランタイムは 3.11 です。プルリクエストごとにビルドを検証する [`pyinstaller_build.yml`](https://github.com/CyberAgent/ChilmAI/blob/main/.github/workflows/pyinstaller_build.yml) も同じ Python 3.11 を使用します。
 
 ビルドが成功すると、次のファイルを添付した GitHub Release が公開されます。
 

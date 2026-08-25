@@ -3,7 +3,7 @@ pandas/panderaの挙動の確認
 """
 
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 import pytest
 from pandas.errors import IntCastingNaNError
 from pandera.errors import SchemaError, SchemaErrors

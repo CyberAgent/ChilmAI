@@ -46,7 +46,7 @@ Issue、Pull Request、コメント、コードには以下を含めないでく
 
 ### 必要環境
 
-- Python 3.10 〜 3.12
+- Python 3.11 〜 3.14
 - [uv](https://docs.astral.sh/uv/)
 
 ### セットアップ手順

@@ -9,7 +9,7 @@ ChilmAI を開発者として使い始める手順です。ライブラリとし
 
 === "PyPI から（ライブラリとして使う）"
 
-    Python 3.10 〜 3.12 を用意して、インストールします。
+    Python 3.11 〜 3.14 を用意して、インストールします。
 
     <!-- TODO(PyPI 公開後に確定): 公開を確認のうえ、プロジェクトページ（例: https://pypi.org/project/chilmai/）へのリンクをここに追加する -->
 
@@ -27,7 +27,7 @@ ChilmAI を開発者として使い始める手順です。ライブラリとし
 
 === "ソースコードから（Web UI・開発）"
 
-    Git、Python 3.10 〜 3.12、[uv](https://docs.astral.sh/uv/) を用意してください。Web UI を利用する場合は、Microsoft Edge や Google Chrome などのモダンブラウザも必要です。
+    Git、Python 3.11 〜 3.14、[uv](https://docs.astral.sh/uv/) を用意してください。Web UI を利用する場合は、Microsoft Edge や Google Chrome などのモダンブラウザも必要です。
 
     ```bash
     git clone https://github.com/CyberAgent/ChilmAI.git

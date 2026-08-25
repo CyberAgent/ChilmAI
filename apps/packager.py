@@ -43,8 +43,9 @@ LICENSE_FILE_PREFIXES = ("LICENSE", "LICENCE", "NOTICE", "COPYING")
 
 # ライセンスファイルを一切同梱していない配布物。手書きの注記で開示している
 # ものだけを挙げる。未登録のパッケージに条文が無ければビルドを止める
-# （verify_license_files_are_present）。
-NO_LICENSE_TEXT_PACKAGES = {"ortools"}
+# （verify_license_files_are_present）。現在の依存はすべて自前の条文を
+# 同梱しているので空。
+NO_LICENSE_TEXT_PACKAGES: set[str] = set()
 
 # 手書きで補う情報の置き場。詳細は apps/licenses/README.md。
 SUPPLEMENT_DIR = ROOT / "apps" / "licenses"
@@ -69,6 +70,10 @@ SPDX_TEXT_FILES: dict[str, str | None] = {
     "Apache-2.0": None,
     "Apache-2.0 WITH LLVM-exception": "LLVM-exception.txt",
     "BSD-3-Clause": "BSD-3-Clause.txt",
+    # ortools 9.15 の libscip.dll が静的リンクする Boost 用
+    "BSL-1.0": "BSL-1.0.txt",
+    # ortools 9.15 が同梱する bz2.dll 用
+    "bzip2-1.0.6": "bzip2-1.0.6.txt",
     "MIT": "MIT.txt",
     "Unicode-3.0": "Unicode-3.0.txt",
     "Unicode-DFS-2016": "Unicode-DFS-2016.txt",
@@ -141,11 +146,15 @@ class BundledComponent(NamedTuple):
 # coin-or/* ではなく CMake 対応フォークの Mizux/* を取得し、さらに PATCH_COMMAND で
 # パッチを当てる。上流プロジェクトのリリースタグを書くと、実際にビルドされた
 # ソースを指さないことになる。GIT_REPOSITORY と PATCH_COMMAND まで読むこと。
-ORTOOLS_PATCH = "https://github.com/google/or-tools/blob/v9.8/patches/{}"
+ORTOOLS_PATCH = "https://github.com/google/or-tools/blob/v9.15/patches/{}"
 BUNDLED_NATIVE_COMPONENTS = [
-    # ortools の wheel はこれらを静的リンクする。9.8 の Windows wheel は共有
-    # ライブラリを持たず、モジュールごとの .pyd に個別に入っている（CP-SAT の
-    # .pyd 自体も Coin-OR と Eigen を含む）。構成はプラットフォームと版で変わる。
+    # ortools の wheel はこれらを同梱する。9.15 の Windows wheel は
+    # ortools/.libs/ に共有ライブラリを置く構成：
+    #   ortools.dll（Coin-OR 5 件と Eigen を静的リンク）、libscip.dll（SoPlex と
+    #   Boost を静的リンク）、highs.dll、libprotobuf.dll、libutf8_validity.dll、
+    #   abseil_dll.dll、re2.dll、zlib1.dll、bz2.dll
+    # 構成はプラットフォームとバージョンで変わる。裏取りの手順は
+    # apps/licenses/README.md。
     #
     # Coin-OR の 5 件は Mizux の CMake 対応フォークの cmake/<version> タグ。
     # upstream の releases/<version> には CMakeLists.txt が無く、同じ構成では
@@ -153,59 +162,59 @@ BUNDLED_NATIVE_COMPONENTS = [
     BundledComponent(
         "ortools",
         "CoinUtils",
-        "2.11.6",
+        "2.11.12",
         "EPL-2.0",
-        "https://github.com/Mizux/CoinUtils/tree/cmake/2.11.6",
+        "https://github.com/Mizux/CoinUtils/tree/cmake/2.11.12",
         ORTOOLS_PATCH.format("coinutils-2.11.patch"),
         notices=(
-            "https://raw.githubusercontent.com/Mizux/CoinUtils/cmake/2.11.6/LICENSE",
-            "https://raw.githubusercontent.com/Mizux/CoinUtils/cmake/2.11.6/AUTHORS",
+            "https://raw.githubusercontent.com/Mizux/CoinUtils/cmake/2.11.12/LICENSE",
+            "https://raw.githubusercontent.com/Mizux/CoinUtils/cmake/2.11.12/AUTHORS",
         ),
     ),
+    # 0.108.11 の Mizux タグは AUTHORS を持たない（LICENSE のみ）。
     BundledComponent(
         "ortools",
         "Osi",
-        "0.108.7",
+        "0.108.11",
         "EPL-2.0",
-        "https://github.com/Mizux/Osi/tree/cmake/0.108.7",
+        "https://github.com/Mizux/Osi/tree/cmake/0.108.11",
         ORTOOLS_PATCH.format("osi-0.108.patch"),
-        notices=("https://raw.githubusercontent.com/Mizux/Osi/cmake/0.108.7/LICENSE",),
+        notices=("https://raw.githubusercontent.com/Mizux/Osi/cmake/0.108.11/LICENSE",),
     ),
     BundledComponent(
         "ortools",
         "Clp",
-        "1.17.7",
+        "1.17.10",
         "EPL-2.0",
-        "https://github.com/Mizux/Clp/tree/cmake/1.17.7",
-        # パッチのファイル名は上流の付け方で 1.17.4 のまま。実物に合わせる。
-        ORTOOLS_PATCH.format("clp-1.17.4.patch"),
+        "https://github.com/Mizux/Clp/tree/cmake/1.17.10",
+        ORTOOLS_PATCH.format("clp-1.17.patch"),
         notices=(
-            "https://raw.githubusercontent.com/Mizux/Clp/cmake/1.17.7/LICENSE",
-            "https://raw.githubusercontent.com/Mizux/Clp/cmake/1.17.7/AUTHORS",
+            "https://raw.githubusercontent.com/Mizux/Clp/cmake/1.17.10/LICENSE",
+            "https://raw.githubusercontent.com/Mizux/Clp/cmake/1.17.10/AUTHORS",
         ),
     ),
     BundledComponent(
         "ortools",
         "Cgl",
-        "0.60.5",
+        "0.60.9",
         "EPL-2.0",
-        "https://github.com/Mizux/Cgl/tree/cmake/0.60.5",
+        "https://github.com/Mizux/Cgl/tree/cmake/0.60.9",
         ORTOOLS_PATCH.format("cgl-0.60.patch"),
         notices=(
-            "https://raw.githubusercontent.com/Mizux/Cgl/cmake/0.60.5/LICENSE",
-            "https://raw.githubusercontent.com/Mizux/Cgl/cmake/0.60.5/AUTHORS",
+            "https://raw.githubusercontent.com/Mizux/Cgl/cmake/0.60.9/LICENSE",
+            "https://raw.githubusercontent.com/Mizux/Cgl/cmake/0.60.9/AUTHORS",
         ),
     ),
     BundledComponent(
         "ortools",
         "Cbc",
-        "2.10.7",
+        "2.10.12",
         "EPL-2.0",
-        "https://github.com/Mizux/Cbc/tree/cmake/2.10.7",
+        "https://github.com/Mizux/Cbc/tree/cmake/2.10.12",
         ORTOOLS_PATCH.format("cbc-2.10.patch"),
         notices=(
-            "https://raw.githubusercontent.com/Mizux/Cbc/cmake/2.10.7/LICENSE",
-            "https://raw.githubusercontent.com/Mizux/Cbc/cmake/2.10.7/AUTHORS",
+            "https://raw.githubusercontent.com/Mizux/Cbc/cmake/2.10.12/LICENSE",
+            "https://raw.githubusercontent.com/Mizux/Cbc/cmake/2.10.12/AUTHORS",
         ),
     ),
     BundledComponent(
@@ -225,78 +234,146 @@ BUNDLED_NATIVE_COMPONENTS = [
             "https://gitlab.com/libeigen/eigen/-/raw/3.4.0/COPYING.LGPL",
         ),
     ),
-    # SCIP と re2 のパッチは v9.8 では PATCH_COMMAND がコメントアウトされている。
+    # v9.15 は SCIP をビルドして libscip.dll として同梱する。SCIP 8 以降は
+    # Apache-2.0（ZIB Academic License ではない）。
     BundledComponent(
         "ortools",
         "SCIP",
-        "8.0.4",
+        "10.0.0",
         "Apache-2.0",
-        "https://github.com/scipopt/scip/tree/v804",
-        notices=("https://raw.githubusercontent.com/scipopt/scip/v804/LICENSE",),
+        "https://github.com/scipopt/scip/tree/v10.0.0",
+        ORTOOLS_PATCH.format("scip-v10.0.0.patch"),
+        notices=("https://raw.githubusercontent.com/scipopt/scip/v10.0.0/LICENSE",),
     ),
+    # SCIP の LP ソルバ。libscip.dll に静的リンクされる（SoPlex シンボルで確認）。
+    BundledComponent(
+        "ortools",
+        "SoPlex",
+        "8.0.0",
+        "Apache-2.0",
+        "https://github.com/scipopt/soplex/tree/v8.0.0",
+        ORTOOLS_PATCH.format("soplex-v8.0.0.patch"),
+        notices=("https://raw.githubusercontent.com/scipopt/soplex/v8.0.0/LICENSE",),
+    ),
+    # SoPlex が使う multiprecision / serialization。libscip.dll に boost:: の
+    # シンボルが残る。ヘッダオンリー利用でも配布バイナリに含まれるので開示する。
+    BundledComponent(
+        "ortools",
+        "Boost",
+        "1.87.0",
+        "BSL-1.0",
+        "https://github.com/boostorg/boost/tree/boost-1.87.0",
+        ORTOOLS_PATCH.format("boost-1.87.0.patch"),
+        notices=("https://raw.githubusercontent.com/boostorg/boost/boost-1.87.0/LICENSE_1_0.txt",),
+    ),
+    # v9.15 は USE_HIGHS=ON でビルドされ、highs.dll が同梱される。
+    # GLPK（GPL）は OFF で、glp_* シンボルが無いことを wheel で確認済み。
+    BundledComponent(
+        "ortools",
+        "HiGHS",
+        "1.12.0",
+        "MIT",
+        "https://github.com/ERGO-Code/HiGHS/tree/v1.12.0",
+        notices=("https://raw.githubusercontent.com/ERGO-Code/HiGHS/v1.12.0/LICENSE.txt",),
+    ),
+    # 2025-08-12 の re2 は AUTHORS ファイルを持たない（LICENSE のみ）。
     BundledComponent(
         "ortools",
         "re2",
-        "2023-11-01",
+        "2025-08-12",
         "BSD-3-Clause",
-        "https://github.com/google/re2/tree/2023-11-01",
-        notices=(
-            "https://raw.githubusercontent.com/google/re2/2023-11-01/LICENSE",
-            "https://raw.githubusercontent.com/google/re2/2023-11-01/AUTHORS",
-        ),
+        "https://github.com/google/re2/tree/2025-08-12",
+        ORTOOLS_PATCH.format("re2-2025-08-12.patch"),
+        notices=("https://raw.githubusercontent.com/google/re2/2025-08-12/LICENSE",),
     ),
     BundledComponent(
         "ortools",
         "abseil-cpp",
-        "20230802.1",
+        "20250814.1",
         "Apache-2.0",
-        "https://github.com/abseil/abseil-cpp/tree/20230802.1",
-        ORTOOLS_PATCH.format("abseil-cpp-20230802.1.patch"),
+        "https://github.com/abseil/abseil-cpp/tree/20250814.1",
+        ORTOOLS_PATCH.format("abseil-cpp-20250814.1.patch"),
         notices=(
-            "https://raw.githubusercontent.com/abseil/abseil-cpp/20230802.1/LICENSE",
-            "https://raw.githubusercontent.com/abseil/abseil-cpp/20230802.1/AUTHORS",
+            "https://raw.githubusercontent.com/abseil/abseil-cpp/20250814.1/LICENSE",
+            "https://raw.githubusercontent.com/abseil/abseil-cpp/20250814.1/AUTHORS",
         ),
     ),
     BundledComponent(
         "ortools",
         "protobuf",
-        "25.0",
+        "33.1",
         "BSD-3-Clause",
-        "https://github.com/protocolbuffers/protobuf/tree/v25.0",
-        ORTOOLS_PATCH.format("protobuf-v25.0.patch"),
-        notices=("https://raw.githubusercontent.com/protocolbuffers/protobuf/v25.0/LICENSE",),
+        "https://github.com/protocolbuffers/protobuf/tree/v33.1",
+        ORTOOLS_PATCH.format("protobuf-v33.1.patch"),
+        notices=("https://raw.githubusercontent.com/protocolbuffers/protobuf/v33.1/LICENSE",),
+    ),
+    # protobuf のソースツリー内でビルドされ、libutf8_validity.dll として
+    # 単体の DLL になる（protobuf 本体とライセンスが違うので別項にする）。
+    BundledComponent(
+        "ortools",
+        "utf8_range",
+        "33.1",
+        "MIT",
+        "https://github.com/protocolbuffers/protobuf/tree/v33.1/third_party/utf8_range",
+        ORTOOLS_PATCH.format("protobuf-v33.1.patch"),
+        notices=(
+            "https://raw.githubusercontent.com/protocolbuffers/protobuf/v33.1/third_party/utf8_range/LICENSE",
+        ),
     ),
     BundledComponent(
         "ortools",
         "zlib",
-        "1.2.13",
+        "1.3.1",
         "Zlib",
-        "https://github.com/madler/zlib/tree/v1.2.13",
-        ORTOOLS_PATCH.format("ZLIB.patch"),
-        notices=("https://raw.githubusercontent.com/madler/zlib/v1.2.13/LICENSE",),
+        "https://github.com/madler/zlib/tree/v1.3.1",
+        ORTOOLS_PATCH.format("ZLIB-v1.3.1.patch"),
+        notices=("https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE",),
+    ),
+    # v9.15 で追加。bz2.dll として同梱される。上流の取得タグが GIT_TAG "master"
+    # （コメントで bzip2-1.0.8 相当と注記）なので、リビジョンを固定できない旨を
+    # そのまま出す。
+    BundledComponent(
+        "ortools",
+        "bzip2",
+        "unpinned",
+        "bzip2-1.0.6",
+        "https://gitlab.com/bzip2/bzip2",
+        ORTOOLS_PATCH.format("bzip2.patch"),
+        unpinned=True,
+        notices=("https://gitlab.com/bzip2/bzip2/-/raw/master/COPYING",),
     ),
     BundledComponent(
         "ortools",
         "pybind11",
-        "2.10.3",
+        "2.13.6",
         "BSD-3-Clause",
-        "https://github.com/pybind/pybind11/tree/v2.10.3",
-        ORTOOLS_PATCH.format("pybind11.patch"),
-        notices=("https://raw.githubusercontent.com/pybind/pybind11/v2.10.3/LICENSE",),
+        "https://github.com/pybind/pybind11/tree/v2.13.6",
+        ORTOOLS_PATCH.format("pybind11-v2.13.6.patch"),
+        notices=("https://raw.githubusercontent.com/pybind/pybind11/v2.13.6/LICENSE",),
     ),
-    # v9.8 はこれをタグではなく main ブランチから取っている（GIT_TAG "main"）。
-    # ビルド時点のリビジョンは上流に記録が無いので、固定できない旨をそのまま出す。
+    # v9.15 で追加。wheel 直下の pybind11_abseil/status.pyd としてビルドされる。
+    BundledComponent(
+        "ortools",
+        "pybind11_abseil",
+        "202402.0",
+        "BSD-3-Clause",
+        "https://github.com/pybind/pybind11_abseil/tree/v202402.0",
+        ORTOOLS_PATCH.format("pybind11_abseil.patch"),
+        notices=("https://raw.githubusercontent.com/pybind/pybind11_abseil/v202402.0/LICENSE",),
+    ),
+    # v9.15 はコミットハッシュに固定されており、パッチは当たらない
+    # （PATCH_COMMAND はコメントアウトされている）。
     BundledComponent(
         "ortools",
         "pybind11_protobuf",
-        "unpinned",
+        "f02a2b7653bc50eb5119d125842a3870db95d251",
         # 上流の LICENSE は Apache-2.0 ではなく BSD-3-Clause
         # （"Copyright (c) 2019-2021 The Pybind Development Team"）。
         "BSD-3-Clause",
-        "https://github.com/pybind/pybind11_protobuf",
-        ORTOOLS_PATCH.format("pybind11_protobuf.patch"),
-        unpinned=True,
-        notices=("https://raw.githubusercontent.com/pybind/pybind11_protobuf/main/LICENSE",),
+        "https://github.com/pybind/pybind11_protobuf/tree/f02a2b7653bc50eb5119d125842a3870db95d251",
+        notices=(
+            "https://raw.githubusercontent.com/pybind/pybind11_protobuf/f02a2b7653bc50eb5119d125842a3870db95d251/LICENSE",
+        ),
     ),
     # exe の先頭に埋め込まれる PyInstaller のブートローダ。GPL-2.0-or-later だが、
     # Bootloader Exception が組み込み配布を明示的に許諾している。
@@ -472,6 +549,12 @@ PERMISSIVE_LICENSES = {
     "mit",
     "psf-2.0",
     "zlib",
+    # numpy 2.x が "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0" を
+    # 宣言する。0BSD は帰属表示義務すら無いゼロ条項 BSD、CC0-1.0 は
+    # パブリックドメイン相当の権利放棄で、どちらもバイナリ再配布に追加義務が
+    # 生じない。
+    "0bsd",
+    "cc0-1.0",
     # wheel の PEP 770 SBOM / Cargo.lock に現れる Rust クレートのライセンス。
     # WITH 例外は分割せず 1 項として扱うので、この表記のまま登録する。
     "apache-2.0 with llvm-exception",
@@ -509,20 +592,20 @@ NATIVE_EXTENSION_SUFFIXES = (".so", ".pyd", ".dll", ".dylib")
 NATIVE_REVIEWED_PACKAGES = {
     # 同梱ライブラリ（OpenBLAS、libgfortran ほか）を upstream の LICENSE.txt が
     # 自前で開示しており、pip-licenses がそれをそのまま取り込む。
-    "numpy": ("1.26.4", "upstream LICENSE.txt discloses its bundled libraries"),
+    "numpy": ("2.4.6", "upstream LICENSE.txt discloses its bundled libraries"),
     # PEP 770 の SBOM でリンク先の Rust クレートを申告している。
     # wheel_declared_crates() がそれを読む。
     "python-calamine": ("0.8.2", "ships a PEP 770 SBOM listing its Rust crates"),
-    # ライセンスファイルを一切同梱していない。手書きの注記で開示する。
-    "ortools": ("9.8.3296", "documented by hand in bundled-native-notices.txt"),
+    # 同梱するネイティブ構成物は BUNDLED_NATIVE_COMPONENTS と手書きの注記で
+    # 開示する（裏取りの手順は apps/licenses/README.md）。
+    "ortools": ("9.15.6755", "documented by hand in bundled-native-notices.txt"),
     # SBOM を持たない Rust 拡張。上流のリリースタグの Cargo.lock 由来の一覧を
     # apps/licenses/cargo-lock-crates.json から読む。
     "pydantic-core": ("2.41.5", "crates recorded from the upstream Cargo.lock"),
     # 自前のソースをビルドしただけで、第三者ライブラリを同梱していない。
-    "pandas": ("2.2.3", "no third-party libraries bundled"),
-    "protobuf": ("7.34.0", "no third-party libraries bundled"),
+    "pandas": ("2.3.3", "no third-party libraries bundled"),
+    "protobuf": ("6.33.6", "no third-party libraries bundled"),
     "markupsafe": ("3.0.3", "no third-party libraries bundled"),
-    "wrapt": ("2.1.1", "no third-party libraries bundled"),
 }
 
 
@@ -849,6 +932,12 @@ def distribution_license_files(name: str) -> list[tuple[Path, Path]]:
     a *vendored* distribution go under ``vendor/<name>/`` -- setuptools vendors
     twelve packages whose license files all happen to be called ``LICENSE``, and
     flattening them would silently drop eleven.
+
+    Inside the dist-info the directory structure is preserved (only the leading
+    PEP 639 ``licenses/`` segment is dropped): numpy 2.x puts the license files
+    of its vendored code under ``licenses/numpy/...`` as a tree containing nine
+    files that are all called ``LICENSE.md``, and flattening to the basename
+    would silently overwrite eight of them.
     """
     dist = distribution(name)
     found: list[tuple[Path, Path]] = []
@@ -861,7 +950,10 @@ def distribution_license_files(name: str) -> list[tuple[Path, Path]]:
             continue
         index = info[-1]
         if index == 0:
-            destination = Path(parts[-1])
+            inside = parts[1:]
+            if inside[0] == "licenses" and len(inside) > 1:
+                inside = inside[1:]
+            destination = Path(*inside)
         else:
             vendored = parts[index].rsplit(".dist-info", 1)[0].rsplit(".egg-info", 1)[0]
             destination = Path("vendor") / vendored / parts[-1]
