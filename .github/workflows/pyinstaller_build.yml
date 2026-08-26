@@ -93,3 +93,17 @@ jobs:
             exit 0
           }
           exit $LASTEXITCODE
+      - name: Upload Windows distribution
+        # PR 段階の成果物を動作確認用に配る。upload-artifact がディレクトリを
+        # zip に包むので、ダウンロードはそのまま zip として落ちてくる。
+        # 成果物は数百 MB 級なので保持期間は短くする。
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ChilmAI-windows-${{ github.sha }}
+          path: dist/ChilmAI/
+          retention-days: 7
+          # upload-artifact はドット始まりのパスを「隠しファイル」として既定で
+          # 除外する。ortools/.libs（共有 DLL の置き場）がこれに該当し、除外される
+          # と exe が DLL load failed で起動しない。アップロード対象はビルド
+          # 成果物ディレクトリだけなので、秘匿ファイルを拾う恐れはない。
+          include-hidden-files: true

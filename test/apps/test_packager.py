@@ -6,13 +6,8 @@ import re
 import sqlite3
 import ssl
 import sys
+import tomllib
 from pathlib import Path
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    # tomllib は Python 3.11 で標準ライブラリ入り。3.10 は後方移植の tomli で代替する。
-    import tomli as tomllib
 
 import pytest
 
@@ -403,9 +398,11 @@ def test_hand_written_notes_cover_what_the_inventory_cannot():
     notes = hand_written_notes()
 
     # 言い回しではなく、必ず触れていなければならない論点だけを見る。
-    # ortools は wheel にライセンスファイルが無いので、理由を残す必要がある。
-    assert "ships no license file" in notes
+    # ortools の同梱物のうち弱コピーレフト（Coin-OR の EPL-2.0、Eigen の
+    # MPL-2.0）は、条文同梱だけでなくソース入手可能性の説明が要る。
+    assert "EPL-2.0" in notes and "MPL-2.0" in notes
     # GPL の GLPK が未リンクであることは、監査で必ず聞かれる。
+    # HiGHS はリンクされているので、その事実にも触れる。
     assert "GLPK" in notes and "HiGHS" in notes
     # EPL-2.0 / MPL-2.0 で効いてくるのはソースの入手可能性。
     assert "Corresponding source code is" in notes

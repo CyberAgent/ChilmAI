@@ -9,7 +9,7 @@ description = 'Generic daycare matching backend and UI'
 readme = 'README.md'
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "TRADEMARK.md"]
-requires-python = '>=3.10,<3.13'
+requires-python = '>=3.11,<3.15'
 # PyPI プロジェクトページの「分類」に表示される Trove classifier。
 # ライセンスは PEP 639 の license 式で宣言済みのため、License :: 分類は付けない
 # （setuptools が license 式との併用をエラーにする）。
@@ -21,25 +21,28 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Office/Business :: Scheduling",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    'numpy==1.26.4',
-    'pandera==0.20.3',
+    # numpy 2.5 以降は Python 3.12+ 専用のため、3.11 を含む全サポート範囲
+    # （3.11〜3.14）に cp314 ホイールまで揃う 2.4 系を使う。
+    'numpy==2.4.6',
+    'pandera==0.32.1',
     'openpyxl==3.1.5',
     'python-calamine==0.8.2',
-    'ortools==9.8.3296',
-    'pandas==2.2.3',
+    'ortools==9.15.6755',
+    # pandas 3.x は Copy-on-Write や文字列 dtype 既定化など破壊的変更が大きいため、
+    # cp314 ホイールのある 2.x 最終系に留める。
+    'pandas==2.3.3',
     'xlsxwriter==3.2.0',
     'tqdm==4.66.5',
-    # tomllib は Python 3.11 で標準ライブラリ入り。3.10 では同一 API の後方移植を使う。
-    'tomli==2.4.1; python_version < "3.11"',
     'fastapi==0.139.0',
     'jinja2==3.1.6',
     'uvicorn==0.34.2',
@@ -74,7 +77,7 @@ documentation = "https://cyberagent.github.io/ChilmAI/"
 
 [tool.ruff]
 line-length = 108
-target-version = "py310"
+target-version = "py311"
 lint.ignore = [
     "E203",
     "E231",
