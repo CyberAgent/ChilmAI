@@ -102,3 +102,8 @@ jobs:
           name: ChilmAI-windows-${{ github.sha }}
           path: dist/ChilmAI/
           retention-days: 7
+          # upload-artifact はドット始まりのパスを「隠しファイル」として既定で
+          # 除外する。ortools/.libs（共有 DLL の置き場）がこれに該当し、除外される
+          # と exe が DLL load failed で起動しない。アップロード対象はビルド
+          # 成果物ディレクトリだけなので、秘匿ファイルを拾う恐れはない。
+          include-hidden-files: true
