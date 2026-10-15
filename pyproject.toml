@@ -9,7 +9,7 @@ description = 'Generic daycare matching backend and UI'
 readme = 'README.md'
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "TRADEMARK.md"]
-requires-python = '>=3.11,<3.15'
+requires-python = '>=3.11,<3.16'
 # PyPI プロジェクトページの「分類」に表示される Trove classifier。
 # ライセンスは PEP 639 の license 式で宣言済みのため、License :: 分類は付けない
 # （setuptools が license 式との併用をエラーにする）。
@@ -25,14 +25,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Office/Business :: Scheduling",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    # numpy 2.5 以降は Python 3.12+ 専用のため、3.11 を含む全サポート範囲
-    # （3.11〜3.14）に cp314 ホイールまで揃う 2.4 系を使う。
+    # numpy 2.5 以降は Python 3.12+ 専用のため、3.11 を含むサポート範囲に
+    # cp314 ホイールまで揃う 2.4 系を使う（cp315 ホイールは 2.5.2 以降のみ）。
     'numpy==2.4.6',
     'pandera==0.32.1',
     'openpyxl==3.1.5',
