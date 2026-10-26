@@ -47,7 +47,7 @@ dependencies = [
     'jinja2==3.1.6',
     'uvicorn==0.34.2',
     'python-multipart==0.0.32',
-    'setuptools==83.0.0',
+    'setuptools==84.1.0',
 ]
 
 [project.optional-dependencies]
