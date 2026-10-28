@@ -14,6 +14,7 @@ fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 import apps.api.main as api_main  # noqa: E402
+import apps.api.customization as customization_module  # noqa: E402
 from apps.api.customization import (  # noqa: E402
     ParamField,
     WebCustomization,
@@ -131,6 +132,23 @@ def test_load_customization_defaults_to_base_class(monkeypatch):
 def test_load_customization_reads_env_var(monkeypatch):
     monkeypatch.setenv("CHILMAI_WEB_CUSTOMIZATION", SAMPLE_SPEC)
     assert isinstance(load_customization(), SampleWebCustomization)
+
+
+def test_load_customization_reads_bundled_spec_file(monkeypatch, tmp_path):
+    # 配布 ZIP では、ビルド時に同梱したファイルから指定を読む。
+    spec_file = tmp_path / "bundled_customization.txt"
+    spec_file.write_text(SAMPLE_SPEC + "\n", encoding="utf-8")
+    monkeypatch.setattr(customization_module, "BUNDLED_SPEC_FILE", spec_file)
+    monkeypatch.delenv("CHILMAI_WEB_CUSTOMIZATION", raising=False)
+    assert isinstance(load_customization(), SampleWebCustomization)
+
+    # 環境変数を設定した場合は、そちらを優先する。
+    monkeypatch.setenv("CHILMAI_WEB_CUSTOMIZATION", f"{__name__}:_PlainCustomization")
+    assert type(load_customization()) is _PlainCustomization
+
+
+class _PlainCustomization(WebCustomization):
+    pass
 
 
 @pytest.mark.parametrize(

@@ -142,10 +142,26 @@ CHILMAI_WEB_CUSTOMIZATION=examples.sample_web_customization:SampleWebCustomizati
 
 サーバ API の `/validate`・`/match` では、入力値を `params` フィールドに JSON 文字列で渡します（[サーバ API](../api/reference-app.md#server-api)）。
 
+### 配布 ZIP に組み込む {#web-ui-package}
+
+自治体に配布 ZIP（Windows 向けの実行ファイル `ChilmAI.exe`）を渡す場合は、`CHILMAI_WEB_CUSTOMIZATION` を設定して `apps/packager.py` でビルドします。
+
+```powershell
+$env:CHILMAI_WEB_CUSTOMIZATION = "mytown.web:MyTownCustomization"
+uv run python apps/packager.py
+```
+
+指定したモジュールと、そのモジュールが import するライブラリが exe に組み込まれます。どのカスタマイズを使うかも exe に記録されるため、自治体の担当者は環境変数を設定せずに、`ChilmAI.exe` を起動するだけで使えます。
+
+- モジュールは、リポジトリ直下に置くか、ビルドする環境にインストールしてください。指定に誤りがある場合は、exe を作る前にエラーで止まります。
+- ビルドは Windows で、`uv sync --extra package` を実行した環境で行ってください（手順は `.github/workflows/pyinstaller_build.yml` と同じです）。
+- 組み込まれるのは Python のモジュールだけです。カスタマイズが Excel のひな形などのファイルを読む場合は、コードの中にデータとして持たせるか、PyInstaller の設定を追加してください。
+- 同梱物の一覧（`THIRD-PARTY-NOTICES.txt`）とライセンスの検査の対象は ChilmAI 本体の依存ライブラリだけです。カスタマイズのために追加したライブラリのライセンス表示は、配布する事業者が用意してください。
+
 ### 注意事項
 
 - 結果 Excel の数式セル（`=` で始まる文字列を含む）は、入力値が数式として実行されないよう、すべて文字列として保存されます。そのため、数式は出力できません。数値などそれ以外のセルはそのまま保存されます。
 - カスタマイズのメソッドが例外を出した場合は、画面・API ではエラー（E109）として返し、詳細はサーバのログに出力します。
 - 指定したクラスを読み込めない場合、アプリは起動時にエラーで終了します。標準の動作に切り替わることはありません。
 - 指定したモジュールはアプリと同じ権限で実行されます。信頼できるコードだけを指定してください。
-- 配布 ZIP（Windows 向けの実行ファイル）では利用できません。リポジトリから起動してください。
+- 実行中のアプリで環境変数を設定した場合は、配布 ZIP に記録した指定より環境変数を優先します。

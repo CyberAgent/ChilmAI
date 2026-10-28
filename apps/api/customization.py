@@ -8,6 +8,9 @@
     CHILMAI_WEB_CUSTOMIZATION=mytown.web:MyTownCustomization \\
         uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8501
 
+配布 ZIP（``apps/packager.py``）をこの環境変数を設定してビルドすると、指定した
+モジュールが exe に組み込まれ、起動時に環境変数がなくても同じカスタマイズを使う。
+
 実装例は ``examples/sample_web_customization.py`` を参照。
 """
 
@@ -18,6 +21,7 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import openpyxl
@@ -28,6 +32,8 @@ from chilmai.generic.parser import InputParser
 from chilmai.generic.preprocessor import BasePreprocessor
 
 ENV_VAR = "CHILMAI_WEB_CUSTOMIZATION"
+#: 配布 ZIP のビルド時に ``module:ClassName`` を書き込み、exe に同梱するファイル。
+BUNDLED_SPEC_FILE = Path(__file__).with_name("bundled_customization.txt")
 
 _PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # 半角の整数・小数のみ。float() だと nan・inf・全角数字なども通ってしまう。
@@ -229,12 +235,15 @@ def _check_fields(fields: Sequence[ParamField]) -> None:
 def load_customization(spec: str | None = None) -> WebCustomization:
     """``module:ClassName`` 形式の指定からカスタマイズを読み込む。
 
-    ``spec`` を省略した場合は環境変数 ``CHILMAI_WEB_CUSTOMIZATION`` を使い、
-    どちらも未指定の場合は標準の ``WebCustomization`` を返す。
+    ``spec`` を省略した場合は環境変数 ``CHILMAI_WEB_CUSTOMIZATION`` を使う。
+    環境変数も未設定の場合は、配布 ZIP のビルド時に同梱した指定（``BUNDLED_SPEC_FILE``）を
+    使い、それもない場合は標準の ``WebCustomization`` を返す。
     指定に誤りがある場合は、標準の挙動に切り替えずに例外を送出する。
     """
     if spec is None:
         spec = os.getenv(ENV_VAR, "")
+        if not spec.strip() and BUNDLED_SPEC_FILE.is_file():
+            spec = BUNDLED_SPEC_FILE.read_text(encoding="utf-8")
     spec = spec.strip()
     if not spec:
         return WebCustomization()
