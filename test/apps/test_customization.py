@@ -420,6 +420,8 @@ class _BrokenCustomization(WebCustomization):
         return None
 
     def create_parser(self):
+        if self.broken == "create_parser":
+            raise RuntimeError("boom")
         if self.broken == "read_table":
             return _BrokenParser()
         return super().create_parser()
@@ -473,6 +475,18 @@ def test_default_parser_is_not_guarded():
     parser = InputParser()
     assert api_main._guard_customized(parser, InputParser) is parser
     assert "read_table" not in vars(parser)
+
+
+@pytest.mark.parametrize(("broken", "label"), [("create_parser", "create_parser"), ("read_table", "read_columns")])
+def test_analyze_columns_reports_customization_error(monkeypatch, broken, label):
+    monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
+    resp = TestClient(api_main.app).post(
+        "/htmx/analyze-columns",
+        files={"children_file": ("children.csv", io.BytesIO(_children_csv()), "text/csv")},
+    )
+    assert resp.status_code == 200
+    assert "E109" in resp.text
+    assert label in resp.text
 
 
 @pytest.mark.parametrize("broken", ["create_preprocessor", "transform_children", "read_table"])

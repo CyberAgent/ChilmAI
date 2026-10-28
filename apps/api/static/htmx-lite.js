@@ -89,15 +89,8 @@
 
     var isMatchAction = submitter && submitter.getAttribute('data-action') === 'match';
     var isValidateAction = submitter && submitter.getAttribute('data-action') === 'validate';
-    var fileChangedDuringMatch = false;
     if (isMatchAction) {
       submitter.disabled = true;
-      form.querySelectorAll('input[type="file"]').forEach(function (input) {
-        input.addEventListener('change', function onChangeDuringMatch() {
-          fileChangedDuringMatch = true;
-          input.removeEventListener('change', onChangeDuringMatch);
-        });
-      });
       target.innerHTML =
         '<div class="matching-loading" aria-live="polite" aria-busy="true">' +
         '<span class="matching-loading__spinner" aria-hidden="true"></span>' +
@@ -116,14 +109,22 @@
 
     var formData = new FormData(form);
     var generation = inputGeneration(form);
+    // 応答待ちの間に入力が変わったら、変更前の入力の結果は表示せず、画面の状態も更新しない。
+    function isStale() {
+      return (isMatchAction || isValidateAction) && generation !== inputGeneration(form);
+    }
     var fetchError = null;
     try {
       var response = await fetch(url, {
         method: 'POST',
         body: formData
       });
+      var html = await response.text();
+      if (isStale()) {
+        return;
+      }
 
-      target.innerHTML = await response.text();
+      target.innerHTML = html;
 
       if (!isMatchAction && !isValidateAction) {
         var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -132,9 +133,9 @@
 
       var resultMode = response.headers.get('X-Result-Mode');
 
-      if (submitter && submitter.getAttribute('data-action') === 'validate') {
+      if (isValidateAction) {
         var isValid = response.headers.get('X-Validation-Status') === 'valid';
-        setMatchEnabled(form, isValid && generation === inputGeneration(form));
+        setMatchEnabled(form, isValid);
         document.dispatchEvent(new CustomEvent('chilm:after-validate', { detail: { valid: isValid } }));
       }
 
@@ -145,21 +146,20 @@
       fetchError = error;
       throw error;
     } finally {
-      if (isMatchAction) {
-        if (!fileChangedDuringMatch) {
-          submitter.disabled = false;
-        }
-        if (fetchError) {
-          target.innerHTML =
-            '<p class="matching-error">通信エラーが発生しました。再度お試しください。</p>';
-          document.dispatchEvent(new CustomEvent('chilm:after-match', { detail: { success: false } }));
-        }
-      }
       if (isValidateAction) {
+        submitter.disabled = false;
+      }
+      if (isStale()) {
+        target.innerHTML =
+          '<p class="empty-state">入力が変更されたため、もう一度データ確認を実行してください。</p>';
+      } else if (isMatchAction || isValidateAction) {
         submitter.disabled = false;
         if (fetchError) {
           target.innerHTML =
             '<p class="matching-error">通信エラーが発生しました。再度お試しください。</p>';
+          if (isMatchAction) {
+            document.dispatchEvent(new CustomEvent('chilm:after-match', { detail: { success: false } }));
+          }
         }
       }
     }

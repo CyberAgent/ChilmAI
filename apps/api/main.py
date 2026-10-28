@@ -1042,7 +1042,8 @@ async def htmx_analyze_columns(
         if upload is None or not upload.filename:
             return
         try:
-            columns = customization.create_parser().read_columns(
+            parser = _guard_customized(_call_customization(customization.create_parser), InputParser)
+            columns = parser.read_columns(
                 upload.file, _infer_file_format_from_filename(upload.filename), kind=section
             )
         except ValueError as e:
@@ -1050,7 +1051,7 @@ async def htmx_analyze_columns(
             if error_code == ErrorCode.UNSUPPORTED_FILE_FORMAT:
                 # 変換後メッセージがファイル名を含むためプレフィックス不要。
                 errors.append(_labeled_error(_format_error_message(str(e), error_code), error_code))
-            elif error_code == ErrorCode.CSV_ENCODING_ERROR:
+            elif error_code in (ErrorCode.CSV_ENCODING_ERROR, ErrorCode.CUSTOMIZATION_FAILED):
                 # メッセージにファイル名が無いため、どのファイルが原因か分かるよう補う。
                 errors.append(f"「{upload.filename}」：{_labeled_error(str(e), error_code)}")
             else:

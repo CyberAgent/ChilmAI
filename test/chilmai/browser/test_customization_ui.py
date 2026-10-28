@@ -103,3 +103,34 @@ def test_stale_validation_response_does_not_enable_match(page: Page, customized_
     expect(page.locator("#validate-result-content")).not_to_be_empty()
     # 変更前の入力に対する結果なので、マッチングは有効にならない。
     expect(page.locator("#match-button")).to_be_disabled()
+
+
+@pytest.mark.browser
+def test_stale_match_response_is_not_displayed(page: Page, customized_api_server):
+    page.goto(f"{BASE_URL}/")
+    page.locator("#matching-form input[name='children_file']").set_input_files(
+        str(DATA_DIR / "valid_children.csv")
+    )
+    page.locator("#matching-form input[name='daycares_file']").set_input_files(
+        str(DATA_DIR / "valid_daycares.csv")
+    )
+    page.locator("button[data-action='validate']").click()
+    match_button = page.locator("#match-button")
+    expect(match_button).to_be_enabled()
+
+    # マッチングの応答を止めている間に入力項目を変える。
+    pending = []
+    page.route("**/htmx/match", lambda route: pending.append(route))
+    match_button.click()
+    while not pending:
+        page.wait_for_timeout(50)
+    page.locator("#param-month").evaluate(
+        "el => { el.value = '5'; el.dispatchEvent(new Event('change', { bubbles: true })); }"
+    )
+    pending[0].continue_()
+
+    # 変更前の入力に対する結果は表示せず、データ確認からやり直す。
+    expect(page.locator("#match-result-content")).to_contain_text("もう一度データ確認を実行してください")
+    expect(page.locator("[data-download-excel]")).to_have_count(0)
+    expect(match_button).to_be_disabled()
+    expect(page.locator("#panel-1")).to_be_visible()
