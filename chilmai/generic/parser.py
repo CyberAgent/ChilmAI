@@ -5,13 +5,14 @@ from __future__ import annotations
 import re
 import unicodedata
 from io import BytesIO
-from typing import IO, Literal
+from typing import IO, ClassVar, Literal
 
 import pandas as pd
 
 from chilmai.generic.error_codes import ChilmError, ErrorCode
 
 FileFormat = Literal["csv", "excel"]
+FileKind = Literal["children", "daycares", "combination"]
 
 
 def numbered_pattern(template: str) -> re.Pattern[str]:
@@ -45,7 +46,19 @@ class InputParser:
     CSV と Excel を受け付け、全角を含む列名を NFKC で正規化し、
     利用者が設定した列名を `child_id`, `pref_1`, `capacity_age0` などの
     ChilmAI 内部列名へ変換する。
+
+    ファイルの読み込み方は、サブクラスで変更できる:
+
+    - 対象のシートや列名の行だけが異なる場合は、クラス属性 `SHEET_NAME`・
+      `HEADER_ROW` を上書きする。
+    - それ以外の形式の場合は `read_table` をオーバーライドする。
+      `kind` を見て、申込者・保育所・組み合わせのファイルごとに読み方を変えられる。
     """
+
+    #: Excel で読み込むシート。シート名（str）または先頭を 0 とする位置（int）。
+    SHEET_NAME: ClassVar[str | int] = 0
+    #: 列名が書かれた行の行番号（先頭行を 1 とする）。これより上の行は読み飛ばす。
+    HEADER_ROW: ClassVar[int] = 1
 
     @staticmethod
     def _normalize_file_format(file_format: str) -> FileFormat:
@@ -76,23 +89,55 @@ class InputParser:
             ) from exc
 
     @classmethod
-    def _read_dataframe(cls, file_bytes: bytes, file_format: str) -> pd.DataFrame:
-        normalized = cls._normalize_file_format(file_format)
-        buffer = BytesIO(file_bytes)
-        if normalized == "csv":
-            return cls._read_csv(buffer, dtype=str)
+    def read_table(
+        cls,
+        source: IO[bytes],
+        file_format: FileFormat,
+        *,
+        kind: FileKind | None = None,
+        nrows: int | None = None,
+    ) -> pd.DataFrame:
+        """ファイルを列名マッピング前の DataFrame として読み込む。
+
+        サブクラスでオーバーライドすると、読み込み処理そのものを差し替えられる。
+        戻り値は、元ファイルの列名を ``columns`` に持ち、値をすべて文字列
+        （欠損は NaN）で保持する DataFrame とすること。
+
+        Args:
+            source: ファイルの内容。
+            file_format: 正規化済みの形式。``"csv"`` または ``"excel"``。
+            kind: 読み込むファイルの種類。``"children"``・``"daycares"``・
+                ``"combination"`` のいずれか。種類が分からない呼び出しでは ``None``。
+            nrows: 読み込む行数の上限。列名だけを読む場合は ``0``。
+        """
+        header = cls.HEADER_ROW - 1
+        if file_format == "csv":
+            return cls._read_csv(source, dtype=str, header=header, nrows=nrows)
         # calamine (MIT) を明示。pandas は .xlsb の既定エンジンとして LGPLv3 の
         # pyxlsb を選ぶが、これを廃し xlsx/xls/xlsm/xlsb を単一エンジンで読む。
         # engine を省くと pyxlsb 不在時に xlsb で ImportError になる。
-        return pd.read_excel(buffer, sheet_name=0, dtype=str, engine="calamine")
+        return pd.read_excel(
+            source,
+            sheet_name=cls.SHEET_NAME,
+            dtype=str,
+            header=header,
+            nrows=nrows,
+            engine="calamine",
+        )
 
     @classmethod
-    def read_columns(cls, fileobj: IO[bytes], file_format: str) -> list[str]:
+    def _read_dataframe(
+        cls, file_bytes: bytes, file_format: str, *, kind: FileKind | None = None
+    ) -> pd.DataFrame:
         normalized = cls._normalize_file_format(file_format)
-        if normalized == "csv":
-            df = cls._read_csv(fileobj, dtype=str, nrows=0)
-        else:
-            df = pd.read_excel(fileobj, sheet_name=0, dtype=str, nrows=0, engine="calamine")
+        return cls.read_table(BytesIO(file_bytes), normalized, kind=kind)
+
+    @classmethod
+    def read_columns(
+        cls, fileobj: IO[bytes], file_format: str, *, kind: FileKind | None = None
+    ) -> list[str]:
+        normalized = cls._normalize_file_format(file_format)
+        df = cls.read_table(fileobj, normalized, kind=kind, nrows=0)
         return [unicodedata.normalize("NFKC", str(c)) for c in df.columns if c is not None]
 
     @staticmethod
@@ -196,9 +241,11 @@ class InputParser:
 
         return mapped
 
-    def read_raw(self, *, file_bytes: bytes, file_format: str) -> pd.DataFrame:
+    def read_raw(
+        self, *, file_bytes: bytes, file_format: str, kind: FileKind | None = None
+    ) -> pd.DataFrame:
         """ChilmAI の列名マッピングを適用せずにファイルを読み込む。"""
-        return self._read_dataframe(file_bytes, file_format)
+        return self._read_dataframe(file_bytes, file_format, kind=kind)
 
     def parse_children(
         self,
@@ -208,7 +255,7 @@ class InputParser:
         mapping: dict[str, str],
     ) -> pd.DataFrame:
         """申込者データを読み込み、申込者用の列名マッピングを適用する。"""
-        df = self._read_dataframe(file_bytes, file_format)
+        df = self._read_dataframe(file_bytes, file_format, kind="children")
         return self._apply_mapping(df, mapping)
 
     def parse_daycares(
@@ -219,7 +266,7 @@ class InputParser:
         mapping: dict[str, str],
     ) -> pd.DataFrame:
         """保育所データを読み込み、保育所用の列名マッピングを適用する。"""
-        df = self._read_dataframe(file_bytes, file_format)
+        df = self._read_dataframe(file_bytes, file_format, kind="daycares")
         return self._apply_mapping(df, mapping)
 
     def parse_combination(
@@ -241,7 +288,7 @@ class InputParser:
                 - facility_0 (str | float): 希望施設1（0-indexed）。列が存在しない行は NaN。
                 - facility_1 (str | float): 希望施設2（0-indexed）、以降同様。列が存在しない行は NaN。
         """
-        df = self._read_dataframe(file_bytes, file_format)
+        df = self._read_dataframe(file_bytes, file_format, kind="combination")
 
         # NFKC 正規化
         norm_cols = {col: unicodedata.normalize("NFKC", str(col)) for col in df.columns}

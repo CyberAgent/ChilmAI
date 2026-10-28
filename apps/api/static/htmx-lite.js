@@ -232,6 +232,13 @@
         });
       });
 
+      // 追加の入力項目は前処理の結果を変えうるため、変更したらデータ確認からやり直す。
+      form.querySelectorAll('[name^="param__"]').forEach(function (input) {
+        input.addEventListener('change', function () {
+          setMatchEnabled(form, false);
+        });
+      });
+
       var fileInputs = form.querySelectorAll('input[type="file"]');
       fileInputs.forEach(function (input) {
         input.addEventListener('change', function () {
