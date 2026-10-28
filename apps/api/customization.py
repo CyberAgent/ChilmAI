@@ -30,6 +30,9 @@ from chilmai.generic.preprocessor import BasePreprocessor
 ENV_VAR = "CHILMAI_WEB_CUSTOMIZATION"
 
 _PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# 半角の整数・小数のみ。float() だと nan・inf・全角数字なども通ってしまう。
+_NUMBER_RE = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$")
+_FIELD_TYPES = ("text", "number", "select", "checkbox")
 
 
 @dataclass(frozen=True)
@@ -38,13 +41,16 @@ class ParamField:
 
     入力値は文字列として ``WebCustomization`` の各メソッドに ``params`` で渡される。
     ``checkbox`` はチェックありで ``"true"``、なしで ``"false"`` になる。
+    サーバ API で項目そのものを省略した場合は ``default`` を使う。空欄で送られた場合は
+    空文字のまま扱い、``required`` の項目ではエラーになる。
 
     Attributes:
         name: 項目名。英数字と ``_`` のみ。``params`` のキーになる。
         label: 画面に表示する項目名。
         type: 入力の種類。``"text"``・``"number"``・``"select"``・``"checkbox"``。
         choices: ``select`` の選択肢。
-        default: 初期値。未入力の場合もこの値を使う。
+        default: 画面の初期値。サーバ API で項目を省略した場合もこの値を使う。
+            ``checkbox`` では ``"true"`` か ``"false"``。
         required: 入力必須かどうか。
         help_text: 入力欄の下に表示する説明。
     """
@@ -93,8 +99,9 @@ class WebCustomization:
     ) -> openpyxl.Workbook:
         """Web UI からダウンロードする結果 Excel を作成する。
 
-        ``=`` で始まる文字列が数式として実行されないよう、戻り値のすべてのセルは
-        文字列として保存される。そのため、数式は結果 Excel に出力できない。
+        入力値が数式として実行されないよう、戻り値の数式セル（``=`` で始まる文字列を
+        含む）はすべて文字列として保存される。そのため、数式は結果 Excel に出力できない。
+        数値などそれ以外のセルはそのまま保存される。
 
         Args:
             result: ``MatchingService.match()`` の戻り値。``output_columns``・
@@ -182,9 +189,9 @@ def parse_params(fields: Sequence[ParamField], raw: Mapping[str, Any]) -> dict[s
                 text = "true" if str(value).strip().lower() in ("true", "on", "1") else "false"
             params[field.name] = text
             continue
-        text = str(value).strip() if value is not None else ""
-        if not text:
-            text = field.default
+        # 項目の省略は既定値、空欄での送信は「未入力」として扱う。
+        # 任意の select で「—」を選んだ場合などに、既定値で上書きしないため。
+        text = field.default if value is None else str(value).strip()
         if not text:
             if field.required:
                 raise _invalid_param(f"「{field.label}」を入力してください。")
@@ -192,11 +199,8 @@ def parse_params(fields: Sequence[ParamField], raw: Mapping[str, Any]) -> dict[s
             continue
         if field.type == "select" and text not in field.choices:
             raise _invalid_param(f"「{field.label}」には選択肢の中から指定してください: {text!r}")
-        if field.type == "number":
-            try:
-                float(text)
-            except ValueError:
-                raise _invalid_param(f"「{field.label}」には数値を入力してください: {text!r}") from None
+        if field.type == "number" and not _NUMBER_RE.fullmatch(text):
+            raise _invalid_param(f"「{field.label}」には半角の数値を入力してください: {text!r}")
         params[field.name] = text
     return params
 
@@ -209,6 +213,12 @@ def _check_fields(fields: Sequence[ParamField]) -> None:
         if field.name in seen:
             raise ValueError(f"入力項目の name が重複しています: {field.name!r}")
         seen.add(field.name)
+        if field.type not in _FIELD_TYPES:
+            raise ValueError(f"入力項目の type が正しくありません: {field.name!r} ({field.type!r})")
+        if field.type == "checkbox" and field.default not in ("", "true", "false"):
+            raise ValueError(f'checkbox の default は "true" か "false" で指定してください: {field.name!r}')
+        if field.type == "number" and field.default and not _NUMBER_RE.fullmatch(field.default):
+            raise ValueError(f"number の default が半角の数値ではありません: {field.name!r}")
         if field.type == "select":
             if not field.choices:
                 raise ValueError(f"select の入力項目には choices が必要です: {field.name!r}")

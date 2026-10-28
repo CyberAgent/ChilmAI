@@ -61,8 +61,9 @@ class RemarksPreprocessor(BasePreprocessor):
 
     def transform_output(self, df: pd.DataFrame, result: dict[str, Any]) -> pd.DataFrame:
         out = df.copy()
-        # 結果列は列名の設定で変えられるため、列名ではなく末尾の位置で参照する。
-        result_id_col = out.columns[-2]
+        # 結果列の列名は設定で変えられるため、位置で参照する。
+        # transform_output の時点では、結果の保育所ID・保育所名の列がこの順で末尾にある。
+        result_id_col, _result_name_col = out.columns[-2:]
         out["備考"] = out[result_id_col].map(lambda v: f"{self.label} 内定" if v else "保留")
         return out
 

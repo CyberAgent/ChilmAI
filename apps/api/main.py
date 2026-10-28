@@ -3,11 +3,12 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
 import os
 from collections.abc import Mapping
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, TypeVar
 from urllib.parse import quote, unquote, urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -69,13 +70,33 @@ templates.env.filters["profile_display"] = _profile_display
 
 config_store = ConfigStore("data/config.json")
 customization = load_customization()
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+def _call_customization(func: Callable[..., _T], *args: Any) -> _T:
+    """カスタマイズのメソッドを呼び、想定外の例外をエラーコード付きのエラーに変える。
+
+    自治体側のコードの不具合でも、500 エラーではなく画面・API のエラーとして返すため。
+    """
+    try:
+        return func(*args)
+    except ChilmError:
+        raise
+    except Exception as e:
+        logger.exception("customization %s failed", func.__name__)
+        raise ChilmError(
+            f"カスタマイズ処理（{func.__name__}）でエラーが発生しました: {type(e).__name__}: {e}",
+            code=ErrorCode.CUSTOMIZATION_FAILED,
+        ) from e
 
 
 def _matching_service(params: Mapping[str, str]) -> MatchingService:
     # 前処理フックは追加の入力項目の値に応じて変わりうるため、リクエストごとに作る。
     return MatchingService(
-        preprocessor=customization.create_preprocessor(params),
-        parser=customization.create_parser(),
+        preprocessor=_call_customization(customization.create_preprocessor, params),
+        parser=_call_customization(customization.create_parser),
     )
 
 
@@ -384,7 +405,7 @@ def _build_matching_excel(
     meta: dict[str, str] | None = None,
     params: Mapping[str, str] | None = None,
 ) -> str:
-    wb = customization.build_result_workbook(result, meta or {}, params or {})
+    wb = _call_customization(customization.build_result_workbook, result, meta or {}, params or {})
     # 差し替えた処理が作ったシートも含め、入力値が数式として実行されないようにする。
     neutralize_formulas(wb)
     buffer = io.BytesIO()
@@ -909,7 +930,7 @@ async def htmx_match(
                 "result": result,
                 "view": _build_match_view(result),
                 "matching_excel_b64": _build_matching_excel(result, excel_meta, params),
-                "matching_excel_filename": customization.result_filename(params),
+                "matching_excel_filename": _call_customization(customization.result_filename, params),
                 "active_profile_name": active_profile_name,
                 "executed_at": executed_at,
             },

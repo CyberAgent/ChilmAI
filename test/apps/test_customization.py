@@ -90,7 +90,11 @@ def test_parse_params_fills_defaults_and_normalizes_values():
     ("raw", "message"),
     [
         ({}, "「年度」を入力してください"),
-        ({"year": "令和9"}, "「年度」には数値を入力してください"),
+        ({"year": ""}, "「年度」を入力してください"),
+        ({"year": "令和9"}, "「年度」には半角の数値を入力してください"),
+        ({"year": "nan"}, "「年度」には半角の数値を入力してください"),
+        ({"year": "inf"}, "「年度」には半角の数値を入力してください"),
+        ({"year": "２０２７"}, "「年度」には半角の数値を入力してください"),
         ({"year": "2027", "month": "6"}, "「入所月」には選択肢の中から指定してください"),
         ({"year": "2027", "unknown": "x"}, "定義されていない入力項目"),
     ],
@@ -99,6 +103,16 @@ def test_parse_params_rejects_invalid_values(raw, message):
     with pytest.raises(ChilmError, match=message) as exc_info:
         parse_params(_FIELDS, raw)
     assert exc_info.value.code == ErrorCode.INVALID_INPUT_PARAMETER
+
+
+@pytest.mark.parametrize("value", ["2027", "-1", "0.5", ".5", "+3"])
+def test_parse_params_accepts_ascii_numbers(value):
+    assert parse_params(_FIELDS, {"year": value})["year"] == value
+
+
+def test_parse_params_keeps_explicit_empty_value_instead_of_default():
+    # 任意の select で「—」を選んだ場合は、既定値で上書きしない。
+    assert parse_params(_FIELDS, {"year": "2027", "month": ""})["month"] == ""
 
 
 @pytest.mark.parametrize(("value", "expected"), [("true", "true"), ("on", "true"), ("false", "false")])
@@ -145,7 +159,29 @@ class _SelectWithoutChoices(WebCustomization):
     fields: ClassVar = (ParamField(name="a", label="A", type="select"),)
 
 
-@pytest.mark.parametrize("cls_name", ["_DuplicateFields", "_BadName", "_SelectWithoutChoices"])
+class _UnknownType(WebCustomization):
+    fields: ClassVar = (ParamField(name="a", label="A", type="date"),)  # type: ignore[arg-type]
+
+
+class _CheckboxDefaultNotLowercase(WebCustomization):
+    fields: ClassVar = (ParamField(name="a", label="A", type="checkbox", default="True"),)
+
+
+class _NumberDefaultNotNumeric(WebCustomization):
+    fields: ClassVar = (ParamField(name="a", label="A", type="number", default="abc"),)
+
+
+@pytest.mark.parametrize(
+    "cls_name",
+    [
+        "_DuplicateFields",
+        "_BadName",
+        "_SelectWithoutChoices",
+        "_UnknownType",
+        "_CheckboxDefaultNotLowercase",
+        "_NumberDefaultNotNumeric",
+    ],
+)
 def test_load_customization_rejects_invalid_fields(cls_name):
     with pytest.raises(ValueError):
         load_customization(f"{__name__}:{cls_name}")
@@ -329,3 +365,37 @@ def test_customized_workbook_formulas_are_neutralized(monkeypatch):
         for row in ws.iter_rows():
             for cell in row:
                 assert cell.data_type != "f"
+
+
+class _BrokenCustomization(WebCustomization):
+    def __init__(self, broken: str) -> None:
+        self.broken = broken
+
+    def create_preprocessor(self, params):
+        if self.broken == "create_preprocessor":
+            raise RuntimeError("boom")
+        return None
+
+    def build_result_workbook(self, result, meta, params):
+        if self.broken == "build_result_workbook":
+            raise KeyError("missing_key")
+        return super().build_result_workbook(result, meta, params)
+
+
+@pytest.mark.parametrize("broken", ["create_preprocessor", "build_result_workbook"])
+def test_htmx_match_reports_customization_error(monkeypatch, broken):
+    monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
+    resp = TestClient(api_main.app).post("/htmx/match", files=_upload_files())
+    assert resp.status_code == 200
+    assert resp.headers["X-Result-Mode"] == "validate-error"
+    assert "E109" in resp.text
+    assert broken in resp.text
+
+
+def test_api_validate_reports_customization_error(monkeypatch):
+    monkeypatch.setattr(api_main, "customization", _BrokenCustomization("create_preprocessor"))
+    resp = TestClient(api_main.app).post("/validate", files=_upload_files())
+    assert resp.status_code == 422
+    error = resp.json()["detail"]["errors"][0]
+    assert error["code"] == ErrorCode.CUSTOMIZATION_FAILED
+    assert error["type"] == "config"
