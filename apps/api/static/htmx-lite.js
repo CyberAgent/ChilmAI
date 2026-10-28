@@ -19,6 +19,19 @@
     errorEl.hidden = false;
   }
 
+  // ファイルや追加の入力項目を変更するたびに進める世代。データ確認の応答が届いたときに
+  // 送信時から変わっていれば、変更前の入力の結果なのでマッチングを有効にしない。
+  var inputGenerations = new WeakMap();
+
+  function inputGeneration(form) {
+    return inputGenerations.get(form) || 0;
+  }
+
+  function invalidateInputs(form) {
+    inputGenerations.set(form, inputGeneration(form) + 1);
+    setMatchEnabled(form, false);
+  }
+
   function setMatchEnabled(form, enabled) {
     var matchButton = form.querySelector('[data-action="match"]') || document.querySelector('[data-action="match"]');
     if (!matchButton) {
@@ -102,6 +115,7 @@
     }
 
     var formData = new FormData(form);
+    var generation = inputGeneration(form);
     var fetchError = null;
     try {
       var response = await fetch(url, {
@@ -120,7 +134,7 @@
 
       if (submitter && submitter.getAttribute('data-action') === 'validate') {
         var isValid = response.headers.get('X-Validation-Status') === 'valid';
-        setMatchEnabled(form, isValid);
+        setMatchEnabled(form, isValid && generation === inputGeneration(form));
         document.dispatchEvent(new CustomEvent('chilm:after-validate', { detail: { valid: isValid } }));
       }
 
@@ -234,8 +248,11 @@
 
       // 追加の入力項目は前処理の結果を変えうるため、変更したらデータ確認からやり直す。
       form.querySelectorAll('[name^="param__"]').forEach(function (input) {
-        input.addEventListener('change', function () {
-          setMatchEnabled(form, false);
+        // 入力中（change が発生する前）に応答が届く場合に備えて input も監視する。
+        ['input', 'change'].forEach(function (type) {
+          input.addEventListener(type, function () {
+            invalidateInputs(form);
+          });
         });
       });
 
@@ -244,7 +261,7 @@
         input.addEventListener('change', function () {
           updateFileSummary(input);
           showFileFormatError(input);
-          setMatchEnabled(form, false);
+          invalidateInputs(form);
           setValidateEnabled(form, allFilesSelected(form));
         });
 

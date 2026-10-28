@@ -76,3 +76,30 @@ def test_param_inputs_are_sent_and_reset_match_button(page: Page, customized_api
     with page.expect_download() as download_info:
         download_button.click()
     assert download_info.value.suggested_filename == "選考結果_2027年度5月.xlsx"
+
+
+@pytest.mark.browser
+def test_stale_validation_response_does_not_enable_match(page: Page, customized_api_server):
+    page.goto(f"{BASE_URL}/")
+    page.locator("#matching-form input[name='children_file']").set_input_files(
+        str(DATA_DIR / "valid_children.csv")
+    )
+    page.locator("#matching-form input[name='daycares_file']").set_input_files(
+        str(DATA_DIR / "valid_daycares.csv")
+    )
+
+    # データ確認の応答を止めている間に入力項目を変える。
+    pending = []
+    page.route("**/htmx/validate", lambda route: pending.append(route))
+    page.locator("button[data-action='validate']").click()
+    while not pending:
+        page.wait_for_timeout(50)
+    page.locator("#param-month").evaluate(
+        "el => { el.value = '5'; el.dispatchEvent(new Event('change', { bubbles: true })); }"
+    )
+    pending[0].continue_()
+
+    expect(page.locator("#validate-result-content .matching-loading")).to_have_count(0)
+    expect(page.locator("#validate-result-content")).not_to_be_empty()
+    # 変更前の入力に対する結果なので、マッチングは有効にならない。
+    expect(page.locator("#match-button")).to_be_disabled()

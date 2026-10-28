@@ -24,6 +24,7 @@ from apps.api.customization import (  # noqa: E402
 from chilmai.generic.config import DEFAULT_CONFIG  # noqa: E402
 from chilmai.generic.error_codes import ChilmError, ErrorCode  # noqa: E402
 from chilmai.generic.parser import InputParser  # noqa: E402
+from chilmai.generic.preprocessor import BasePreprocessor  # noqa: E402
 from chilmai.generic.service import MatchingService  # noqa: E402
 from examples.sample_web_customization import SampleWebCustomization  # noqa: E402
 
@@ -385,6 +386,26 @@ def test_customized_workbook_formulas_are_neutralized(monkeypatch):
                 assert cell.data_type != "f"
 
 
+class _BrokenPreprocessor(BasePreprocessor):
+    def transform_children(self, df):
+        raise KeyError("missing_column")
+
+
+class _ChilmErrorPreprocessor(BasePreprocessor):
+    def transform_children(self, df):
+        raise ChilmError("年齢の列が不正です", code=ErrorCode.INVALID_INPUT_PARAMETER)
+
+
+# read_table はクラスメソッドから呼ばれるため、エラーは呼び出し元の公開メソッド名で表示される。
+_BROKEN_METHOD_LABEL = {"read_table": "parse_children"}
+
+
+class _BrokenParser(InputParser):
+    @classmethod
+    def read_table(cls, source, file_format, *, kind=None, nrows=None):
+        raise RuntimeError("boom")
+
+
 class _BrokenCustomization(WebCustomization):
     def __init__(self, broken: str) -> None:
         self.broken = broken
@@ -392,7 +413,16 @@ class _BrokenCustomization(WebCustomization):
     def create_preprocessor(self, params):
         if self.broken == "create_preprocessor":
             raise RuntimeError("boom")
+        if self.broken == "transform_children":
+            return _BrokenPreprocessor()
+        if self.broken == "chilm_error":
+            return _ChilmErrorPreprocessor()
         return None
+
+    def create_parser(self):
+        if self.broken == "read_table":
+            return _BrokenParser()
+        return super().create_parser()
 
     def build_result_workbook(self, result, meta, params):
         if self.broken == "build_result_workbook":
@@ -400,18 +430,54 @@ class _BrokenCustomization(WebCustomization):
         return super().build_result_workbook(result, meta, params)
 
 
-@pytest.mark.parametrize("broken", ["create_preprocessor", "build_result_workbook"])
+@pytest.mark.parametrize(
+    "broken", ["create_preprocessor", "transform_children", "read_table", "build_result_workbook"]
+)
 def test_htmx_match_reports_customization_error(monkeypatch, broken):
     monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
     resp = TestClient(api_main.app).post("/htmx/match", files=_upload_files())
     assert resp.status_code == 200
     assert resp.headers["X-Result-Mode"] == "validate-error"
     assert "E109" in resp.text
-    assert broken in resp.text
+    assert _BROKEN_METHOD_LABEL.get(broken, broken) in resp.text
 
 
-def test_api_validate_reports_customization_error(monkeypatch):
-    monkeypatch.setattr(api_main, "customization", _BrokenCustomization("create_preprocessor"))
+@pytest.mark.parametrize("broken", ["transform_children", "read_table"])
+def test_htmx_validate_reports_customization_error(monkeypatch, broken):
+    monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
+    resp = TestClient(api_main.app).post("/htmx/validate", files=_upload_files())
+    assert resp.status_code == 200
+    assert resp.headers["X-Result-Mode"] == "validate-error"
+    assert "E109" in resp.text
+    assert _BROKEN_METHOD_LABEL.get(broken, broken) in resp.text
+
+
+def test_customization_keeps_chilm_error_code(monkeypatch):
+    monkeypatch.setattr(api_main, "customization", _BrokenCustomization("chilm_error"))
+    resp = TestClient(api_main.app).post("/validate", files=_upload_files())
+    assert resp.status_code == 422
+    error = resp.json()["detail"]["errors"][0]
+    assert error["code"] == ErrorCode.INVALID_INPUT_PARAMETER
+    assert "年齢の列が不正です" in error["message"]
+
+
+def test_guarded_parser_is_still_input_parser_subclass():
+    parser = api_main._guard_customized(_BrokenParser(), InputParser)
+    assert isinstance(parser, _BrokenParser)
+    with pytest.raises(ChilmError) as exc_info:
+        parser.parse_children(file_bytes=_children_csv(), file_format="csv", mapping=DEFAULT_CONFIG["children"])
+    assert exc_info.value.code == ErrorCode.CUSTOMIZATION_FAILED
+
+
+def test_default_parser_is_not_guarded():
+    parser = InputParser()
+    assert api_main._guard_customized(parser, InputParser) is parser
+    assert "read_table" not in vars(parser)
+
+
+@pytest.mark.parametrize("broken", ["create_preprocessor", "transform_children", "read_table"])
+def test_api_validate_reports_customization_error(monkeypatch, broken):
+    monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
     resp = TestClient(api_main.app).post("/validate", files=_upload_files())
     assert resp.status_code == 422
     error = resp.json()["detail"]["errors"][0]

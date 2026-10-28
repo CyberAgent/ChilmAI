@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import functools
 import io
 import json
 import logging
@@ -27,6 +28,8 @@ from chilmai.generic.config import (
     ConfigStore,
 )
 from chilmai.generic.error_codes import ChilmError, ErrorCode
+from chilmai.generic.parser import InputParser
+from chilmai.generic.preprocessor import BasePreprocessor
 from chilmai.generic.service import MatchingService
 
 APP_DIR = Path(__file__).resolve().parent
@@ -75,13 +78,13 @@ logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
 
 
-def _call_customization(func: Callable[..., _T], *args: Any) -> _T:
+def _call_customization(func: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
     """カスタマイズのメソッドを呼び、想定外の例外をエラーコード付きのエラーに変える。
 
     自治体側のコードの不具合でも、500 エラーではなく画面・API のエラーとして返すため。
     """
     try:
-        return func(*args)
+        return func(*args, **kwargs)
     except ChilmError:
         raise
     except Exception as e:
@@ -92,11 +95,36 @@ def _call_customization(func: Callable[..., _T], *args: Any) -> _T:
         ) from e
 
 
+_GuardedT = TypeVar("_GuardedT", BasePreprocessor, InputParser)
+
+
+def _guard_customized(obj: _GuardedT, base: type[_GuardedT]) -> _GuardedT:
+    """カスタマイズが返した前処理フック・パーサーのメソッド呼び出しにも例外の変換を適用する。
+
+    生成時だけでなく、``transform_children()``・``read_table()`` などの実行中の例外も
+    500 エラーにしないため。標準の ``base`` そのもののインスタンスは対象外にして、
+    標準の処理のエラーをカスタマイズのエラーとして表示しないようにする。
+    """
+    if type(obj) is base:
+        return obj
+    for name in dir(base):
+        method = getattr(obj, name)
+        # クラスメソッド内の ``cls.read_table()`` などの呼び出しはインスタンス属性を経由しないため、
+        # 公開メソッドで包めば内部の呼び出しの例外もまとめて変換される。
+        if name.startswith("_") or not callable(method):
+            continue
+        # インスタンス属性で上書きするため、isinstance の判定やクラス属性は変わらない。
+        setattr(obj, name, functools.partial(_call_customization, method))
+    return obj
+
+
 def _matching_service(params: Mapping[str, str]) -> MatchingService:
     # 前処理フックは追加の入力項目の値に応じて変わりうるため、リクエストごとに作る。
+    preprocessor = _call_customization(customization.create_preprocessor, params)
+    parser = _call_customization(customization.create_parser)
     return MatchingService(
-        preprocessor=_call_customization(customization.create_preprocessor, params),
-        parser=_call_customization(customization.create_parser),
+        preprocessor=_guard_customized(preprocessor, BasePreprocessor) if preprocessor is not None else None,
+        parser=_guard_customized(parser, InputParser),
     )
 
 
