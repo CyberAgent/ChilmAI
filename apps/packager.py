@@ -643,10 +643,6 @@ def build_customization_pyi_args() -> list[str]:
     it by analysis; pass it as a hidden import. The spec itself is shipped as
     a data file because end users start ChilmAI.exe without setting the env var.
     """
-    # `python apps/packager.py` で実行すると、リポジトリ直下が import の検索パスに入らない。
-    # PyInstaller の --paths と同じく、リポジトリ直下から apps と事業者のモジュールを探す。
-    if str(ROOT) not in sys.path:
-        sys.path.insert(0, str(ROOT))
     from apps.api.customization import BUNDLED_SPEC_FILE, ENV_VAR, load_customization
 
     spec = os.getenv(ENV_VAR, "").strip()
@@ -1735,6 +1731,11 @@ if __name__ == "__main__":
     from importlib.util import find_spec
 
     from PyInstaller.__main__ import run
+
+    # `python apps/packager.py` で実行すると、リポジトリ直下が import の検索パスに入らない。
+    # PyInstaller の --paths と同じく、リポジトリ直下から apps と事業者のモジュールを探す。
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
 
     # ビルドは数分かかるので、ライセンス検査は先に済ませて早く落とす。
     verify_no_unreviewed_licenses()
