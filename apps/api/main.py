@@ -123,7 +123,9 @@ def _matching_service(params: Mapping[str, str]) -> MatchingService:
     preprocessor = _call_customization(customization.create_preprocessor, params)
     parser = _call_customization(customization.create_parser)
     return MatchingService(
-        preprocessor=_guard_customized(preprocessor, BasePreprocessor) if preprocessor is not None else None,
+        preprocessor=_guard_customized(preprocessor, BasePreprocessor)
+        if preprocessor is not None
+        else None,
         parser=_guard_customized(parser, InputParser),
     )
 

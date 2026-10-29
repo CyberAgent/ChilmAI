@@ -467,7 +467,9 @@ def test_guarded_parser_is_still_input_parser_subclass():
     parser = api_main._guard_customized(_BrokenParser(), InputParser)
     assert isinstance(parser, _BrokenParser)
     with pytest.raises(ChilmError) as exc_info:
-        parser.parse_children(file_bytes=_children_csv(), file_format="csv", mapping=DEFAULT_CONFIG["children"])
+        parser.parse_children(
+            file_bytes=_children_csv(), file_format="csv", mapping=DEFAULT_CONFIG["children"]
+        )
     assert exc_info.value.code == ErrorCode.CUSTOMIZATION_FAILED
 
 
@@ -477,7 +479,9 @@ def test_default_parser_is_not_guarded():
     assert "read_table" not in vars(parser)
 
 
-@pytest.mark.parametrize(("broken", "label"), [("create_parser", "create_parser"), ("read_table", "read_columns")])
+@pytest.mark.parametrize(
+    ("broken", "label"), [("create_parser", "create_parser"), ("read_table", "read_columns")]
+)
 def test_analyze_columns_reports_customization_error(monkeypatch, broken, label):
     monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
     resp = TestClient(api_main.app).post(
