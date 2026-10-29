@@ -32,6 +32,11 @@
     setMatchEnabled(form, false);
   }
 
+  // 表示先ごとの最新リクエスト ID。後から送った同じ表示先へのリクエストがあれば、
+  // 古いリクエストの応答や後処理で表示やボタンの状態を変えない。
+  var latestRequestIds = new WeakMap();
+  var nextRequestId = 0;
+
   function setMatchEnabled(form, enabled) {
     var matchButton = form.querySelector('[data-action="match"]') || document.querySelector('[data-action="match"]');
     if (!matchButton) {
@@ -87,6 +92,12 @@
       return;
     }
 
+    var requestId = ++nextRequestId;
+    latestRequestIds.set(target, requestId);
+    function isLatest() {
+      return latestRequestIds.get(target) === requestId;
+    }
+
     var isMatchAction = submitter && submitter.getAttribute('data-action') === 'match';
     var isValidateAction = submitter && submitter.getAttribute('data-action') === 'validate';
     if (isMatchAction) {
@@ -120,7 +131,7 @@
         body: formData
       });
       var html = await response.text();
-      if (isStale()) {
+      if (!isLatest() || isStale()) {
         return;
       }
 
@@ -146,10 +157,17 @@
       fetchError = error;
       throw error;
     } finally {
-      if (isValidateAction) {
-        submitter.disabled = false;
+      // 同じ表示先へ後から送ったリクエストがあれば、表示とボタンの状態はそちらに任せる。
+      if (isLatest()) {
+        finishRequest();
       }
+    }
+
+    function finishRequest() {
       if (isStale()) {
+        if (isValidateAction) {
+          setValidateEnabled(form, allFilesSelected(form));
+        }
         target.innerHTML =
           '<p class="empty-state">入力が変更されたため、もう一度データ確認を実行してください。</p>';
       } else if (isMatchAction || isValidateAction) {
