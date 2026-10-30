@@ -12,6 +12,12 @@ ChilmAI の Windows 向け配布物は、2 つの GitHub Actions ワークフロ
   → GitHub Release の公開
 ```
 
+## 権限の分離
+
+3 つのワークフロー（`release_prepare.yml`・`release_tag.yml`・`pypi_publish.yml`）は、テストやビルドを実行するジョブと、書き込み権限を使うジョブを分けています。テストやビルド中には依存パッケージやビルドバックエンドのコードが動くため、そのジョブには `contents: read` しか与えません。リポジトリへの push、GitHub Release の作成、PyPI の trusted publishing（`id-token: write`）は、前段のジョブが作った成果物を受け取るだけの小さなジョブに限定しています。これは [PyPA のガイド](https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/)が推奨する構成です。
+
+ビルド時に使う setuptools のバージョンは `pyproject.toml` の `[tool.uv]` `build-constraint-dependencies` で固定しています。また、リリース用ジョブの `uv sync` には `--locked` を付け、`uv.lock` が `pyproject.toml` と食い違っている場合は再解決せずに失敗させます。
+
 ## リリースを準備する
 
 [`release_prepare.yml`](https://github.com/CyberAgent/ChilmAI/blob/main/.github/workflows/release_prepare.yml) は、リリースするバージョンを決定し、プロジェクトのバージョンを更新します。ドキュメントのビルドと自動テストがすべて成功すると、リリースコミットと `vX.Y.Z` 形式のタグを作成し、配布物を作成するワークフローを起動します。
