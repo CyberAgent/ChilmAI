@@ -11,7 +11,7 @@ build-constraint-dependencies = ["setuptools==84.1.0"]
 
 [project]
 name = 'ChilmAI'
-version = "0.2.2"
+version = "0.2.3"
 description = 'Generic daycare matching backend and UI'
 readme = 'README.md'
 license = "Apache-2.0"
