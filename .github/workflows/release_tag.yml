@@ -8,8 +8,11 @@ on:
   # release_prepare.yml から gh workflow run --ref <tag> で起動する
   workflow_dispatch:
 
+# ビルドと Release 公開は別ジョブに分ける。PyInstaller ビルド中に動く依存
+# パッケージのコードに、リポジトリや Release を書き換えられるトークンを
+# 渡さないため。contents: write は Release を作る release ジョブだけに付ける。
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -19,8 +22,12 @@ env:
   PYTHONUTF8: 1
 
 jobs:
-  release_artifacts:
+  build:
     runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,7 +58,9 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
       - name: Sync dependencies
-        run: uv sync --extra package
+        # --locked: uv.lock が pyproject.toml と食い違っていたら黙って再解決せず
+        # 失敗させる。リリースに入る依存はロック済みのものに限る。
+        run: uv sync --locked --extra package
       - name: Build with PyInstaller
         run: uv run python apps/packager.py
       - name: Check built binary exists
@@ -108,31 +117,49 @@ jobs:
           Compress-Archive -Path "dist/ChilmAI-${tag}" -DestinationPath $zipPath
           $hash = Get-FileHash -Algorithm SHA256 $zipPath
           "$($hash.Hash.ToLower())  ChilmAI-latest.zip" | Set-Content -Path "${zipPath}.sha256" -Encoding ASCII
+      - name: Upload release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: |
+            dist/ChilmAI-latest.zip
+            dist/ChilmAI-latest.zip.sha256
+          if-no-files-found: error
+          # 既に ZIP なので再圧縮しない
+          compression-level: 0
+          retention-days: 1
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      # リポジトリは checkout しない。gh は --repo 指定で API を直接叩く。
+      - name: Download release assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: dist/
       - name: Create draft GitHub Release
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.release.outputs.tag }}" \
+          gh release create "${TAG}" \
             --repo="$GITHUB_REPOSITORY" \
-            --title="${{ steps.release.outputs.tag }}" \
+            --title="${TAG}" \
             --generate-notes \
             --verify-tag \
             --draft
       - name: Upload release assets
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ steps.release.outputs.tag }}" \
+          gh release upload "${TAG}" \
             "dist/ChilmAI-latest.zip" \
             "dist/ChilmAI-latest.zip.sha256" \
             --repo="$GITHUB_REPOSITORY"
       - name: Publish GitHub Release
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit "${{ steps.release.outputs.tag }}" \
+          gh release edit "${TAG}" \
             --repo="$GITHUB_REPOSITORY" \
             --draft=false

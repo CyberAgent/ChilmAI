@@ -2,6 +2,13 @@
 requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.uv]
+# ビルド時に解決する setuptools を固定する。[build-system].requires は下限だけ
+# なので、固定しないと uv build の時点で PyPI にある最新版がそのまま取り込まれる。
+# バージョンは dependencies の setuptools と揃える。Dependabot はこの行を
+# 更新しないので、setuptools を上げるときは手で追従する。
+build-constraint-dependencies = ["setuptools==84.1.0"]
+
 [project]
 name = 'ChilmAI'
 version = "0.2.2"
