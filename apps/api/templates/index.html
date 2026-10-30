@@ -162,9 +162,50 @@
                     <p id="combination_file-format-error" class="file-format-error" hidden role="alert"></p>
                   </div>
                 </div>
+
+                {% if param_fields %}
+                <div class="upload-grid param-grid">
+                  {% for field in param_fields %}
+                  <div class="dads-form-control-label" data-size="md">
+                    {% if field.type == "checkbox" %}
+                    <label class="checkbox-label" for="param-{{ field.name }}">
+                      <input id="param-{{ field.name }}" type="checkbox" name="param__{{ field.name }}" value="true"
+                        {% if field.default == "true" %}checked{% endif %} />
+                      <span class="dads-form-control-label__label">{{ field.label }}</span>
+                    </label>
+                    {% else %}
+                    <label class="dads-form-control-label__label" for="param-{{ field.name }}">
+                      {{ field.label }}
+                      {% if field.required %}
+                      <span class="dads-form-control-label__requirement" data-required="true">※必須</span>
+                      {% else %}
+                      <span class="dads-form-control-label__requirement" data-required="false">（任意）</span>
+                      {% endif %}
+                    </label>
+                    {% if field.type == "select" %}
+                    <select id="param-{{ field.name }}" class="dads-input-text__input" data-size="md"
+                      name="param__{{ field.name }}" {% if field.required %}required{% endif %}>
+                      {% if not field.required %}<option value="">—</option>{% endif %}
+                      {% for choice in field.choices %}
+                      <option value="{{ choice }}" {% if choice == field.default %}selected{% endif %}>{{ choice }}</option>
+                      {% endfor %}
+                    </select>
+                    {% else %}
+                    <input id="param-{{ field.name }}" class="dads-input-text__input" data-size="md"
+                      type="{{ 'number' if field.type == 'number' else 'text' }}" {% if field.type == 'number' %}step="any"{% endif %}
+                      name="param__{{ field.name }}" value="{{ field.default }}" {% if field.required %}required{% endif %} />
+                    {% endif %}
+                    {% endif %}
+                    {% if field.help_text %}
+                    <p class="dads-form-control-label__support-text">{{ field.help_text }}</p>
+                    {% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
               </form>
             </section>
-            <p class="helper-text">ファイルを変更すると再度データ確認が必要です。</p>
+            <p class="helper-text">{{ "ファイルや入力項目" if param_fields else "ファイル" }}を変更すると再度データ確認が必要です。</p>
           </div>
 
           <div class="stepper-panel__foot">
@@ -388,9 +429,8 @@
         goTo(3);
       });
 
-      // Reset stepper when files change
+      // Reset stepper when files or additional inputs change
       document.addEventListener('change', function (e) {
-        if (e.target.type !== 'file') return;
         if (!e.target.closest('#matching-form')) return;
         states = ['current', 'locked', 'locked'];
         var matchContent = document.getElementById('match-result-content');

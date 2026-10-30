@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import base64
+import functools
 import io
 import json
+import logging
 import os
+from collections.abc import Mapping
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, TypeVar
 from urllib.parse import quote, unquote, urlparse
-
-import openpyxl
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -17,17 +18,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict, Field
 
+from apps.api.customization import load_customization, neutralize_formulas, parse_params
 from apps.version import CHILMAI_VERSION
 from chilmai.algorithm.cp_use_transfer.CP_algo import OptimizationFailureError
 from chilmai.generic.column_mapper import detect_section
 from chilmai.generic.config import (
     DEFAULT_CONFIG,
     DEFAULT_PROFILE_NAME,
-    SCHEMA_VERSION,
     ConfigStore,
 )
 from chilmai.generic.error_codes import ChilmError, ErrorCode
 from chilmai.generic.parser import InputParser
+from chilmai.generic.preprocessor import BasePreprocessor
 from chilmai.generic.service import MatchingService
 
 APP_DIR = Path(__file__).resolve().parent
@@ -70,7 +72,91 @@ def _profile_display(name: str | None) -> str:
 templates.env.filters["profile_display"] = _profile_display
 
 config_store = ConfigStore("data/config.json")
-matching_service = MatchingService()
+customization = load_customization()
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+def _call_customization(func: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
+    """カスタマイズのメソッドを呼び、想定外の例外をエラーコード付きのエラーに変える。
+
+    自治体側のコードの不具合でも、500 エラーではなく画面・API のエラーとして返すため。
+    """
+    try:
+        return func(*args, **kwargs)
+    except ChilmError:
+        raise
+    except Exception as e:
+        logger.exception("customization %s failed", func.__name__)
+        raise ChilmError(
+            f"カスタマイズ処理（{func.__name__}）でエラーが発生しました: {type(e).__name__}: {e}",
+            code=ErrorCode.CUSTOMIZATION_FAILED,
+        ) from e
+
+
+_GuardedT = TypeVar("_GuardedT", BasePreprocessor, InputParser)
+
+
+def _guard_customized(obj: _GuardedT, base: type[_GuardedT]) -> _GuardedT:
+    """カスタマイズが返した前処理フック・パーサーのメソッド呼び出しにも例外の変換を適用する。
+
+    生成時だけでなく、``transform_children()``・``read_table()`` などの実行中の例外も
+    500 エラーにしないため。標準の ``base`` そのもののインスタンスは対象外にして、
+    標準の処理のエラーをカスタマイズのエラーとして表示しないようにする。
+    """
+    if type(obj) is base:
+        return obj
+    for name in dir(base):
+        method = getattr(obj, name)
+        # クラスメソッド内の ``cls.read_table()`` などの呼び出しはインスタンス属性を経由しないため、
+        # 公開メソッドで包めば内部の呼び出しの例外もまとめて変換される。
+        if name.startswith("_") or not callable(method):
+            continue
+        # インスタンス属性で上書きするため、isinstance の判定やクラス属性は変わらない。
+        setattr(obj, name, functools.partial(_call_customization, method))
+    return obj
+
+
+def _matching_service(params: Mapping[str, str]) -> MatchingService:
+    # 前処理フックは追加の入力項目の値に応じて変わりうるため、リクエストごとに作る。
+    preprocessor = _call_customization(customization.create_preprocessor, params)
+    parser = _call_customization(customization.create_parser)
+    return MatchingService(
+        preprocessor=_guard_customized(preprocessor, BasePreprocessor)
+        if preprocessor is not None
+        else None,
+        parser=_guard_customized(parser, InputParser),
+    )
+
+
+def _params_from_json(raw: str | None) -> dict[str, str]:
+    """サーバ API の ``params``（JSON 文字列）を追加の入力項目の値に変換する。"""
+    if not raw:
+        return parse_params(customization.fields, {})
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        loaded = None
+    if not isinstance(loaded, dict):
+        raise ChilmError(
+            "params には JSON オブジェクトを指定してください。", code=ErrorCode.INVALID_INPUT_PARAMETER
+        )
+    return parse_params(customization.fields, loaded)
+
+
+async def _params_from_form(request: Request) -> dict[str, str]:
+    """Web UI のフォームの ``param__<name>`` を追加の入力項目の値に変換する。"""
+    form = await request.form()
+    raw: dict[str, Any] = {}
+    for field in customization.fields:
+        value = form.get(f"param__{field.name}")
+        if field.type == "checkbox":
+            # チェックを外したチェックボックスはフォームに含まれないため、未入力（既定値）と区別する。
+            raw[field.name] = "true" if value is not None else "false"
+        elif isinstance(value, str):
+            raw[field.name] = value
+    return parse_params(customization.fields, raw)
 
 
 def _infer_file_format_from_filename(filename: str | None) -> str:
@@ -344,41 +430,23 @@ def _build_match_view(result: dict[str, Any]) -> dict[str, Any]:
 _JST = timezone(timedelta(hours=9))
 
 
-def _build_matching_excel(result: dict[str, Any], meta: dict[str, str] | None = None) -> str:
-    output_columns: list[str] = result.get("output_columns", [])
-    output_rows: list[dict[str, Any]] = result.get("output_rows", [])
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "result"
-    ws.append(output_columns)
-    for row in output_rows:
-        ws.append([row.get(col, "") for col in output_columns])
-    # Prevent formula injection: strings starting with '=' are detected as
-    # formula cells by openpyxl; force them back to string type so Excel
-    # renders them as literal text instead of executing them.
-    for ws_row in ws.iter_rows():
-        for cell in ws_row:
-            if cell.data_type == "f":
-                cell.data_type = "s"
-
-    meta_ws = wb.create_sheet(title="meta")
-    meta_ws.append(["key", "value"])
-    meta_items: list[tuple[str, str]] = [
-        ("schema_version", str(SCHEMA_VERSION)),
-        ("active_profile", (meta or {}).get("active_profile", "")),
-        ("executed_at", (meta or {}).get("executed_at", "")),
-    ]
-    for key, value in meta_items:
-        meta_ws.append([key, value])
-    for ws_row in meta_ws.iter_rows():
-        for cell in ws_row:
-            if cell.data_type == "f":
-                cell.data_type = "s"
-
+def _build_matching_excel(
+    result: dict[str, Any],
+    meta: dict[str, str] | None = None,
+    params: Mapping[str, str] | None = None,
+) -> str:
+    wb = _call_customization(customization.build_result_workbook, result, meta or {}, params or {})
+    # 差し替えた処理が作ったシートも含め、入力値が数式として実行されないようにする。
+    neutralize_formulas(wb)
     buffer = io.BytesIO()
     wb.save(buffer)
     return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+_PARAMS_DESCRIPTION = (
+    "カスタマイズで追加した入力項目の値の JSON 文字列。"
+    'カスタマイズを使わない場合は不要です。例: {"fiscal_year": "2027"}'
+)
 
 
 class ValidationErrorItem(BaseModel):
@@ -549,6 +617,7 @@ def top(request: Request):
             "static_version": _static_asset_version(),
             "config_is_customized": config_display["is_customized"],
             "active_profile_name": config_display["active_profile_name"],
+            "param_fields": customization.fields,
         },
     )
 
@@ -667,11 +736,12 @@ async def validate(
     combination_file: UploadFile | None = File(
         default=None, description="組み合わせデータの CSV または Excel ファイル（任意）。"
     ),
+    params: str | None = Form(default=None, description=_PARAMS_DESCRIPTION),
 ) -> ValidateResponse:
     mapping = config_store.load()
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
-        result = matching_service.validate(
+        result = _matching_service(_params_from_json(params)).validate(
             children_file_bytes=await children_file.read(),
             children_file_format=_infer_file_format_from_filename(children_file.filename),
             daycares_file_bytes=await daycares_file.read(),
@@ -721,6 +791,7 @@ async def match(
     solver_config: str | None = Form(
         default=None, description='ソルバー設定の JSON 文字列。例: {"max_time_seconds": 10}'
     ),
+    params: str | None = Form(default=None, description=_PARAMS_DESCRIPTION),
 ) -> MatchResponse:
     parsed_solver_config: dict[str, Any] = {}
     if solver_config:
@@ -733,7 +804,7 @@ async def match(
     mapping = config_store.load()
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
-        result = matching_service.match(
+        result = _matching_service(_params_from_json(params)).match(
             children_file_bytes=await children_file.read(),
             children_file_format=_infer_file_format_from_filename(children_file.filename),
             daycares_file_bytes=await daycares_file.read(),
@@ -782,7 +853,8 @@ async def htmx_validate(
     mapping = config_store.load()
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
-        result = matching_service.validate(
+        params = await _params_from_form(request)
+        result = _matching_service(params).validate(
             children_file_bytes=await children_file.read(),
             children_file_format=_infer_file_format_from_filename(children_file.filename),
             daycares_file_bytes=await daycares_file.read(),
@@ -860,7 +932,8 @@ async def htmx_match(
     mapping = config_store.load()
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
-        result = matching_service.match(
+        params = await _params_from_form(request)
+        result = _matching_service(params).match(
             children_file_bytes=await children_file.read(),
             children_file_format=_infer_file_format_from_filename(children_file.filename),
             daycares_file_bytes=await daycares_file.read(),
@@ -886,7 +959,8 @@ async def htmx_match(
             {
                 "result": result,
                 "view": _build_match_view(result),
-                "matching_excel_b64": _build_matching_excel(result, excel_meta),
+                "matching_excel_b64": _build_matching_excel(result, excel_meta, params),
+                "matching_excel_filename": _call_customization(customization.result_filename, params),
                 "active_profile_name": active_profile_name,
                 "executed_at": executed_at,
             },
@@ -970,15 +1044,16 @@ async def htmx_analyze_columns(
         if upload is None or not upload.filename:
             return
         try:
-            columns = InputParser.read_columns(
-                upload.file, _infer_file_format_from_filename(upload.filename)
+            parser = _guard_customized(_call_customization(customization.create_parser), InputParser)
+            columns = parser.read_columns(
+                upload.file, _infer_file_format_from_filename(upload.filename), kind=section
             )
         except ValueError as e:
             error_code = getattr(e, "code", None)
             if error_code == ErrorCode.UNSUPPORTED_FILE_FORMAT:
                 # 変換後メッセージがファイル名を含むためプレフィックス不要。
                 errors.append(_labeled_error(_format_error_message(str(e), error_code), error_code))
-            elif error_code == ErrorCode.CSV_ENCODING_ERROR:
+            elif error_code in (ErrorCode.CSV_ENCODING_ERROR, ErrorCode.CUSTOMIZATION_FAILED):
                 # メッセージにファイル名が無いため、どのファイルが原因か分かるよう補う。
                 errors.append(f"「{upload.filename}」：{_labeled_error(str(e), error_code)}")
             else:

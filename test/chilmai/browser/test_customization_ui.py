@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.request import urlopen
+
+import pytest
+from playwright.sync_api import Page, expect
+
+DATA_DIR = Path(__file__).resolve().parents[3] / "test" / "data" / "e2e"
+BASE_URL = "http://127.0.0.1:8502"
+
+
+@pytest.fixture(scope="module")
+def customized_api_server():
+    env = {
+        **os.environ,
+        "CHILMAI_WEB_CUSTOMIZATION": "examples.sample_web_customization:SampleWebCustomization",
+    }
+    process = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "apps.api.main:app", "--host", "127.0.0.1", "--port", "8502"],
+        env=env,
+    )
+
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        try:
+            with urlopen(f"{BASE_URL}/", timeout=1):
+                break
+        except Exception:
+            time.sleep(0.5)
+    else:
+        process.send_signal(signal.SIGTERM)
+        process.wait(timeout=5)
+        raise RuntimeError("API server did not start")
+
+    yield process
+
+    process.send_signal(signal.SIGTERM)
+    process.wait(timeout=10)
+
+
+@pytest.mark.browser
+def test_param_inputs_are_sent_and_reset_match_button(page: Page, customized_api_server):
+    page.goto(f"{BASE_URL}/")
+    expect(page.locator("#param-fiscal_year")).to_have_value("2027")
+    expect(page.locator("#param-month")).to_have_value("4")
+    expect(page.locator("#param-add_remarks")).to_be_checked()
+
+    page.locator("#matching-form input[name='children_file']").set_input_files(
+        str(DATA_DIR / "valid_children.csv")
+    )
+    page.locator("#matching-form input[name='daycares_file']").set_input_files(
+        str(DATA_DIR / "valid_daycares.csv")
+    )
+    page.locator("button[data-action='validate']").click()
+    match_button = page.locator("#match-button")
+    expect(match_button).to_be_enabled()
+
+    # 入力項目を変えたらデータ確認からやり直す。
+    page.locator("#panel-2 [data-nav-to='1']").click()
+    page.locator("#param-month").select_option("5")
+    expect(match_button).to_be_disabled()
+    expect(page.locator("#panel-1")).to_be_visible()
+
+    page.locator("button[data-action='validate']").click()
+    expect(match_button).to_be_enabled()
+    match_button.click()
+
+    download_button = page.locator("[data-download-excel]")
+    expect(download_button).to_have_attribute("data-download-filename", "選考結果_2027年度5月.xlsx")
+    with page.expect_download() as download_info:
+        download_button.click()
+    assert download_info.value.suggested_filename == "選考結果_2027年度5月.xlsx"
+
+
+@pytest.mark.browser
+def test_stale_validation_response_does_not_enable_match(page: Page, customized_api_server):
+    page.goto(f"{BASE_URL}/")
+    page.locator("#matching-form input[name='children_file']").set_input_files(
+        str(DATA_DIR / "valid_children.csv")
+    )
+    page.locator("#matching-form input[name='daycares_file']").set_input_files(
+        str(DATA_DIR / "valid_daycares.csv")
+    )
+
+    # データ確認の応答を止めている間に入力項目を変える。
+    pending = []
+    page.route("**/htmx/validate", lambda route: pending.append(route))
+    page.locator("button[data-action='validate']").click()
+    while not pending:
+        page.wait_for_timeout(50)
+    page.locator("#param-month").evaluate(
+        "el => { el.value = '5'; el.dispatchEvent(new Event('change', { bubbles: true })); }"
+    )
+    pending[0].continue_()
+
+    expect(page.locator("#validate-result-content .matching-loading")).to_have_count(0)
+    expect(page.locator("#validate-result-content")).not_to_be_empty()
+    # 変更前の入力に対する結果なので、マッチングは有効にならない。
+    expect(page.locator("#match-button")).to_be_disabled()
+
+
+@pytest.mark.browser
+def test_stale_match_response_is_not_displayed(page: Page, customized_api_server):
+    page.goto(f"{BASE_URL}/")
+    page.locator("#matching-form input[name='children_file']").set_input_files(
+        str(DATA_DIR / "valid_children.csv")
+    )
+    page.locator("#matching-form input[name='daycares_file']").set_input_files(
+        str(DATA_DIR / "valid_daycares.csv")
+    )
+    page.locator("button[data-action='validate']").click()
+    match_button = page.locator("#match-button")
+    expect(match_button).to_be_enabled()
+
+    # マッチングの応答を止めている間に入力項目を変える。
+    pending = []
+    page.route("**/htmx/match", lambda route: pending.append(route))
+    match_button.click()
+    while not pending:
+        page.wait_for_timeout(50)
+    page.locator("#param-month").evaluate(
+        "el => { el.value = '5'; el.dispatchEvent(new Event('change', { bubbles: true })); }"
+    )
+    pending[0].continue_()
+
+    # 変更前の入力に対する結果は表示せず、データ確認からやり直す。
+    expect(page.locator("#match-result-content")).to_contain_text("もう一度データ確認を実行してください")
+    expect(page.locator("[data-download-excel]")).to_have_count(0)
+    expect(match_button).to_be_disabled()
+    expect(page.locator("#panel-1")).to_be_visible()

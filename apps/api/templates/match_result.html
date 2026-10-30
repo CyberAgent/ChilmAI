@@ -43,7 +43,7 @@
       data-type="outline"
       data-size="md"
       data-download-excel="#matching-result-excel"
-      data-download-filename="matching_result.xlsx"
+      data-download-filename="{{ matching_excel_filename | default('matching_result.xlsx') }}"
     >Excelをダウンロード</button>
   </div>
 </div>

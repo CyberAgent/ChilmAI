@@ -19,6 +19,24 @@
     errorEl.hidden = false;
   }
 
+  // ファイルや追加の入力項目を変更するたびに進める世代。データ確認の応答が届いたときに
+  // 送信時から変わっていれば、変更前の入力の結果なのでマッチングを有効にしない。
+  var inputGenerations = new WeakMap();
+
+  function inputGeneration(form) {
+    return inputGenerations.get(form) || 0;
+  }
+
+  function invalidateInputs(form) {
+    inputGenerations.set(form, inputGeneration(form) + 1);
+    setMatchEnabled(form, false);
+  }
+
+  // 表示先ごとの最新リクエスト ID。後から送った同じ表示先へのリクエストがあれば、
+  // 古いリクエストの応答や後処理で表示やボタンの状態を変えない。
+  var latestRequestIds = new WeakMap();
+  var nextRequestId = 0;
+
   function setMatchEnabled(form, enabled) {
     var matchButton = form.querySelector('[data-action="match"]') || document.querySelector('[data-action="match"]');
     if (!matchButton) {
@@ -74,17 +92,16 @@
       return;
     }
 
+    var requestId = ++nextRequestId;
+    latestRequestIds.set(target, requestId);
+    function isLatest() {
+      return latestRequestIds.get(target) === requestId;
+    }
+
     var isMatchAction = submitter && submitter.getAttribute('data-action') === 'match';
     var isValidateAction = submitter && submitter.getAttribute('data-action') === 'validate';
-    var fileChangedDuringMatch = false;
     if (isMatchAction) {
       submitter.disabled = true;
-      form.querySelectorAll('input[type="file"]').forEach(function (input) {
-        input.addEventListener('change', function onChangeDuringMatch() {
-          fileChangedDuringMatch = true;
-          input.removeEventListener('change', onChangeDuringMatch);
-        });
-      });
       target.innerHTML =
         '<div class="matching-loading" aria-live="polite" aria-busy="true">' +
         '<span class="matching-loading__spinner" aria-hidden="true"></span>' +
@@ -102,14 +119,23 @@
     }
 
     var formData = new FormData(form);
+    var generation = inputGeneration(form);
+    // 応答待ちの間に入力が変わったら、変更前の入力の結果は表示せず、画面の状態も更新しない。
+    function isStale() {
+      return (isMatchAction || isValidateAction) && generation !== inputGeneration(form);
+    }
     var fetchError = null;
     try {
       var response = await fetch(url, {
         method: 'POST',
         body: formData
       });
+      var html = await response.text();
+      if (!isLatest() || isStale()) {
+        return;
+      }
 
-      target.innerHTML = await response.text();
+      target.innerHTML = html;
 
       if (!isMatchAction && !isValidateAction) {
         var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -118,7 +144,7 @@
 
       var resultMode = response.headers.get('X-Result-Mode');
 
-      if (submitter && submitter.getAttribute('data-action') === 'validate') {
+      if (isValidateAction) {
         var isValid = response.headers.get('X-Validation-Status') === 'valid';
         setMatchEnabled(form, isValid);
         document.dispatchEvent(new CustomEvent('chilm:after-validate', { detail: { valid: isValid } }));
@@ -131,21 +157,27 @@
       fetchError = error;
       throw error;
     } finally {
-      if (isMatchAction) {
-        if (!fileChangedDuringMatch) {
-          submitter.disabled = false;
-        }
-        if (fetchError) {
-          target.innerHTML =
-            '<p class="matching-error">通信エラーが発生しました。再度お試しください。</p>';
-          document.dispatchEvent(new CustomEvent('chilm:after-match', { detail: { success: false } }));
-        }
+      // 同じ表示先へ後から送ったリクエストがあれば、表示とボタンの状態はそちらに任せる。
+      if (isLatest()) {
+        finishRequest();
       }
-      if (isValidateAction) {
+    }
+
+    function finishRequest() {
+      if (isStale()) {
+        if (isValidateAction) {
+          setValidateEnabled(form, allFilesSelected(form));
+        }
+        target.innerHTML =
+          '<p class="empty-state">入力が変更されたため、もう一度データ確認を実行してください。</p>';
+      } else if (isMatchAction || isValidateAction) {
         submitter.disabled = false;
         if (fetchError) {
           target.innerHTML =
             '<p class="matching-error">通信エラーが発生しました。再度お試しください。</p>';
+          if (isMatchAction) {
+            document.dispatchEvent(new CustomEvent('chilm:after-match', { detail: { success: false } }));
+          }
         }
       }
     }
@@ -232,12 +264,22 @@
         });
       });
 
+      // 追加の入力項目は前処理の結果を変えうるため、変更したらデータ確認からやり直す。
+      form.querySelectorAll('[name^="param__"]').forEach(function (input) {
+        // 入力中（change が発生する前）に応答が届く場合に備えて input も監視する。
+        ['input', 'change'].forEach(function (type) {
+          input.addEventListener(type, function () {
+            invalidateInputs(form);
+          });
+        });
+      });
+
       var fileInputs = form.querySelectorAll('input[type="file"]');
       fileInputs.forEach(function (input) {
         input.addEventListener('change', function () {
           updateFileSummary(input);
           showFileFormatError(input);
-          setMatchEnabled(form, false);
+          invalidateInputs(form);
           setValidateEnabled(form, allFilesSelected(form));
         });
 
