@@ -44,4 +44,10 @@ Web UI では、申込者データと保育所データの確認から入所選�
 
 `/validate` と `/match` には、`children_file` と `daycares_file` をファイルとして指定します。任意のきょうだい組み合わせを使う場合は `combination_file` も指定できます。`/match` の `solver_config` は、`{"max_time_seconds": 10}` のような JSON 文字列を multipart form のフィールドとして渡します。
 
+[Web UI のカスタマイズ](../development/customization.md#web-ui) で入力項目を追加している場合は、その値を `{"fiscal_year": "2027"}` のような JSON 文字列で `params` フィールドに渡します。カスタマイズを使わない場合、`params` は不要です。
+
+## カスタマイズ
+
+前処理フック、入力ファイルの読み込み、結果 Excel、画面の入力項目は、`apps/` を改変せずに差し替えられます。詳しくは [カスタマイズ](../development/customization.md#web-ui) を参照してください。
+
 `/htmx/*` は Web UI の画面更新に使う HTML コンポーネントを返す内部エンドポイントです。プログラムから連携する場合は、OpenAPI に掲載される HTTP API を利用してください。

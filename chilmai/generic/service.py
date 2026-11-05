@@ -51,11 +51,18 @@ class MatchingService:
         preprocessor: 自治体カスタム前処理。``None`` の場合はすべてパススルーの
             ``BasePreprocessor`` を使う。前処理が呼ばれる順序は
             ``BasePreprocessor`` を参照。
+        parser: 入力ファイルの読み込みに使う ``InputParser``。``None`` の場合は
+            各ファイルの先頭シートの 1 行目を列名として読む ``InputParser`` を使う。
+            対象のシートや列名の行を変える場合は ``InputParser`` のサブクラスを渡す。
     """
 
-    def __init__(self, preprocessor: BasePreprocessor | None = None) -> None:
+    def __init__(
+        self,
+        preprocessor: BasePreprocessor | None = None,
+        parser: InputParser | None = None,
+    ) -> None:
         self.preprocessor = preprocessor or BasePreprocessor()
-        self.parser = InputParser()
+        self.parser = parser or InputParser()
         self.validator = ValidationService()
         self.matcher = CpSatMatcher()
 
@@ -323,7 +330,9 @@ class MatchingService:
             combination_df=combination_df,
         )
 
-        original_df = self.parser.read_raw(file_bytes=children_file_bytes, file_format=children_file_format)
+        original_df = self.parser.read_raw(
+            file_bytes=children_file_bytes, file_format=children_file_format, kind="children"
+        )
         child_id_col = mapping.get("children", {}).get("child_id", "child_id")
         output_config = mapping.get("output", {})
         result_id_col = output_config.get("result_daycare_id", "入所選考結果保育所ID")

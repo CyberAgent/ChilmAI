@@ -630,9 +630,33 @@ def build_pyi_args() -> list[str]:
         "--noconfirm",
         "--clean",
         "--distpath=" + str(ROOT / "dist"),
+        *build_customization_pyi_args(),
         str(ROOT / "apps" / "api_launcher.py"),
     ]
     return args
+
+
+def build_customization_pyi_args() -> list[str]:
+    """Bundle the Web UI customization named by CHILMAI_WEB_CUSTOMIZATION.
+
+    The module is imported dynamically at startup, so PyInstaller cannot find
+    it by analysis; pass it as a hidden import. The spec itself is shipped as
+    a data file because end users start ChilmAI.exe without setting the env var.
+    """
+    from apps.api.customization import BUNDLED_SPEC_FILE, ENV_VAR, load_customization
+
+    spec = os.getenv(ENV_VAR, "").strip()
+    if not spec:
+        return []
+    # ビルドの前に読み込んで、指定の誤りを exe を作る前に検出する。
+    load_customization(spec)
+    spec_file = ROOT / "build" / "customization" / BUNDLED_SPEC_FILE.name
+    spec_file.parent.mkdir(parents=True, exist_ok=True)
+    spec_file.write_text(spec, encoding="utf-8")
+    return [
+        "--hidden-import=" + spec.partition(":")[0],
+        f"--add-data={spec_file}{os.pathsep}{Path('apps') / 'api'}",
+    ]
 
 
 def copy_sample_dir(dist_dir: Path) -> None:
@@ -1707,6 +1731,11 @@ if __name__ == "__main__":
     from importlib.util import find_spec
 
     from PyInstaller.__main__ import run
+
+    # `python apps/packager.py` で実行すると、リポジトリ直下が import の検索パスに入らない。
+    # PyInstaller の --paths と同じく、リポジトリ直下から apps と事業者のモジュールを探す。
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
 
     # ビルドは数分かかるので、ライセンス検査は先に済ませて早く落とす。
     verify_no_unreviewed_licenses()

@@ -429,9 +429,7 @@ def test_htmx_match_solver_error_renders_match_error_template():
     from chilmai.algorithm.cp_use_transfer.CP_algo import OptimizationFailureError
 
     client = TestClient(app)
-    with patch(
-        "apps.api.main.matching_service.match", side_effect=OptimizationFailureError("テストエラー")
-    ):
+    with patch("apps.api.main.MatchingService.match", side_effect=OptimizationFailureError("テストエラー")):
         resp = client.post(
             "/htmx/match",
             files={
@@ -576,7 +574,7 @@ def test_htmx_match_solver_error_shows_error_code():
     client = TestClient(app)
     err = OptimizationFailureError("マッチングが実行不可能です")
     err.code = ErrorCode.SOLVER_INFEASIBLE
-    with patch("apps.api.main.matching_service.match", side_effect=err):
+    with patch("apps.api.main.MatchingService.match", side_effect=err):
         resp = client.post(
             "/htmx/match",
             files={
@@ -610,7 +608,7 @@ def test_match_endpoint_config_error_returns_config_type():
 
     client = TestClient(app)
     err = ChilmError("出力列名の設定が重複しています", code=ErrorCode.DUPLICATE_OUTPUT_COL_NAMES)
-    with patch("apps.api.main.matching_service.match", side_effect=err):
+    with patch("apps.api.main.MatchingService.match", side_effect=err):
         resp = client.post(
             "/match",
             files={

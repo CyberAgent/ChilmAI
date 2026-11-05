@@ -87,6 +87,47 @@ def test_build_pyi_args_never_packages_local_config_json(monkeypatch, tmp_path: 
     assert all("data/config.json" not in arg for arg in add_data_args)
 
 
+def test_build_pyi_args_without_customization_has_no_hidden_import(monkeypatch):
+    monkeypatch.delenv("CHILMAI_WEB_CUSTOMIZATION", raising=False)
+
+    args = build_pyi_args()
+
+    assert not any(arg.startswith("--hidden-import=") for arg in args)
+    assert not any("bundled_customization.txt" in arg for arg in args)
+
+
+def test_build_pyi_args_bundles_customization_from_env_var(monkeypatch, tmp_path: Path):
+    spec = "examples.sample_web_customization:SampleWebCustomization"
+    monkeypatch.setenv("CHILMAI_WEB_CUSTOMIZATION", spec)
+    monkeypatch.setattr(packager, "ROOT", tmp_path)
+
+    args = build_pyi_args()
+
+    # 起動時に動的に import するモジュールは、PyInstaller の解析では見つからない。
+    assert "--hidden-import=examples.sample_web_customization" in args
+    # 起動時の指定は、exe 内の apps/api/ に同梱したファイルから読む。
+    spec_file = tmp_path / "build" / "customization" / "bundled_customization.txt"
+    assert spec_file.read_text(encoding="utf-8") == spec
+    assert f"--add-data={spec_file}{os.pathsep}{Path('apps') / 'api'}" in args
+    # エントリポイントは最後の引数のまま。
+    assert args[-1].replace("\\", "/").endswith("apps/api_launcher.py")
+
+
+@pytest.mark.parametrize(
+    ("spec", "error"),
+    [
+        ("examples.sample_web_customization", ValueError),
+        ("no_such_module_for_chilmai:Foo", ModuleNotFoundError),
+    ],
+)
+def test_build_pyi_args_rejects_invalid_customization(monkeypatch, tmp_path: Path, spec, error):
+    monkeypatch.setenv("CHILMAI_WEB_CUSTOMIZATION", spec)
+    monkeypatch.setattr(packager, "ROOT", tmp_path)
+
+    with pytest.raises(error):
+        build_pyi_args()
+
+
 def test_copy_sample_dir_places_sample_next_to_dist_dir(monkeypatch, tmp_path: Path):
     sample_dir = tmp_path / "sample"
     sample_dir.mkdir()

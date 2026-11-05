@@ -420,6 +420,12 @@ a:active {
   min-width: 0;
 }
 
+.param-grid .checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 / 16 * 1rem);
+}
+
 .dads-description-list {
   margin: calc(16 / 16 * 1rem) 0;
   display: grid;
