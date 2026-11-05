@@ -134,3 +134,32 @@ def test_stale_match_response_is_not_displayed(page: Page, customized_api_server
     expect(page.locator("[data-download-excel]")).to_have_count(0)
     expect(match_button).to_be_disabled()
     expect(page.locator("#panel-1")).to_be_visible()
+
+
+@pytest.mark.browser
+def test_stale_match_response_resets_processing_step_on_input_only(page: Page, customized_api_server):
+    page.goto(f"{BASE_URL}/")
+    page.locator("#matching-form input[name='children_file']").set_input_files(
+        str(DATA_DIR / "valid_children.csv")
+    )
+    page.locator("#matching-form input[name='daycares_file']").set_input_files(
+        str(DATA_DIR / "valid_daycares.csv")
+    )
+    page.locator("button[data-action='validate']").click()
+    match_button = page.locator("#match-button")
+    expect(match_button).to_be_enabled()
+
+    pending = []
+    page.route("**/htmx/match", lambda route: pending.append(route))
+    match_button.click()
+    while not pending:
+        page.wait_for_timeout(50)
+    # 入力中（フォーカスが外れる前）は input だけが発火し、change は発火しない。
+    page.locator("#param-fiscal_year").evaluate(
+        "el => { el.value = '2028'; el.dispatchEvent(new Event('input', { bubbles: true })); }"
+    )
+    pending[0].continue_()
+
+    expect(page.locator("#match-result-content")).to_contain_text("もう一度データ確認を実行してください")
+    expect(page.locator(".stepper-step[data-step='3']")).not_to_have_attribute("data-state", "processing")
+    expect(page.locator("#panel-1")).to_be_visible()

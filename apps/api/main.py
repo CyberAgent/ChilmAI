@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import base64
-import functools
+import contextlib
 import io
 import json
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Callable, Literal, TypeVar
+from typing import Any, Callable, Literal
 from urllib.parse import quote, unquote, urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -18,7 +18,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict, Field
 
-from apps.api.customization import load_customization, neutralize_formulas, parse_params
+import openpyxl
+
+from apps.api.customization import (
+    WebCustomization,
+    load_customization,
+    neutralize_formulas,
+    parse_params,
+)
 from apps.version import CHILMAI_VERSION
 from chilmai.algorithm.cp_use_transfer.CP_algo import OptimizationFailureError
 from chilmai.generic.column_mapper import detect_section
@@ -28,8 +35,6 @@ from chilmai.generic.config import (
     ConfigStore,
 )
 from chilmai.generic.error_codes import ChilmError, ErrorCode
-from chilmai.generic.parser import InputParser
-from chilmai.generic.preprocessor import BasePreprocessor
 from chilmai.generic.service import MatchingService
 
 APP_DIR = Path(__file__).resolve().parent
@@ -75,58 +80,39 @@ config_store = ConfigStore("data/config.json")
 customization = load_customization()
 logger = logging.getLogger(__name__)
 
-_T = TypeVar("_T")
+
+def _is_customized() -> bool:
+    return type(customization) is not WebCustomization
 
 
-def _call_customization(func: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
-    """カスタマイズのメソッドを呼び、想定外の例外をエラーコード付きのエラーに変える。
+@contextlib.contextmanager
+def _customization_errors() -> Iterator[None]:
+    """カスタマイズを使う処理の想定外の例外を、エラーコード付きのエラーに変える。
 
     自治体側のコードの不具合でも、500 エラーではなく画面・API のエラーとして返すため。
+    ``ValueError``（``ChilmError`` を含む）は入力の問題として各エンドポイントで
+    そのまま返す。カスタマイズを使っていない場合は変換せず、標準の処理の不具合を
+    カスタマイズのエラーとして表示しないようにする。
     """
     try:
-        return func(*args, **kwargs)
-    except ChilmError:
+        yield
+    except (ValueError, OptimizationFailureError):
         raise
     except Exception as e:
-        logger.exception("customization %s failed", func.__name__)
+        if not _is_customized():
+            raise
+        logger.exception("customization %s failed", type(customization).__name__)
         raise ChilmError(
-            f"カスタマイズ処理（{func.__name__}）でエラーが発生しました: {type(e).__name__}: {e}",
+            f"カスタマイズを使った処理でエラーが発生しました: {type(e).__name__}: {e}",
             code=ErrorCode.CUSTOMIZATION_FAILED,
         ) from e
 
 
-_GuardedT = TypeVar("_GuardedT", BasePreprocessor, InputParser)
-
-
-def _guard_customized(obj: _GuardedT, base: type[_GuardedT]) -> _GuardedT:
-    """カスタマイズが返した前処理フック・パーサーのメソッド呼び出しにも例外の変換を適用する。
-
-    生成時だけでなく、``transform_children()``・``read_table()`` などの実行中の例外も
-    500 エラーにしないため。標準の ``base`` そのもののインスタンスは対象外にして、
-    標準の処理のエラーをカスタマイズのエラーとして表示しないようにする。
-    """
-    if type(obj) is base:
-        return obj
-    for name in dir(base):
-        method = getattr(obj, name)
-        # クラスメソッド内の ``cls.read_table()`` などの呼び出しはインスタンス属性を経由しないため、
-        # 公開メソッドで包めば内部の呼び出しの例外もまとめて変換される。
-        if name.startswith("_") or not callable(method):
-            continue
-        # インスタンス属性で上書きするため、isinstance の判定やクラス属性は変わらない。
-        setattr(obj, name, functools.partial(_call_customization, method))
-    return obj
-
-
 def _matching_service(params: Mapping[str, str]) -> MatchingService:
     # 前処理フックは追加の入力項目の値に応じて変わりうるため、リクエストごとに作る。
-    preprocessor = _call_customization(customization.create_preprocessor, params)
-    parser = _call_customization(customization.create_parser)
     return MatchingService(
-        preprocessor=_guard_customized(preprocessor, BasePreprocessor)
-        if preprocessor is not None
-        else None,
-        parser=_guard_customized(parser, InputParser),
+        preprocessor=customization.create_preprocessor(params),
+        parser=customization.create_parser(),
     )
 
 
@@ -289,11 +275,26 @@ def _labeled_error(msg: str, code: int | None) -> str:
     return f"[E{code}] {msg}" if code else msg
 
 
+# E1xx のうち列名の設定とは関係しないもの。項目名の設定画面ではなく、それぞれの確認先を案内する。
+_PARAM_ERROR_CODES = (ErrorCode.INVALID_INPUT_PARAMETER,)
+_CUSTOMIZATION_ERROR_CODES = (ErrorCode.CUSTOMIZATION_FAILED,)
+
+
 def _build_validate_view(result: dict[str, Any]) -> dict[str, Any]:
+    errors = result.get("errors", [])
+    param_errors = [
+        _labeled_error(e["message"], e.get("code")) for e in errors if e.get("code") in _PARAM_ERROR_CODES
+    ]
+    customization_errors = [
+        _labeled_error(e["message"], e.get("code"))
+        for e in errors
+        if e.get("code") in _CUSTOMIZATION_ERROR_CODES
+    ]
     config_errors = [
         _labeled_error(e["message"], e.get("code"))
-        for e in result.get("errors", [])
+        for e in errors
         if e.get("type") == "config"
+        and e.get("code") not in _PARAM_ERROR_CODES + _CUSTOMIZATION_ERROR_CODES
     ]
     data_errors = [
         _labeled_error(e["message"], e.get("code"))
@@ -319,6 +320,8 @@ def _build_validate_view(result: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "next_action": next_action,
         "config_errors": config_errors,
+        "param_errors": param_errors,
+        "customization_errors": customization_errors,
         "data_errors": data_errors,
         "format_errors": format_errors,
         "summary_rows": [
@@ -435,11 +438,16 @@ def _build_matching_excel(
     meta: dict[str, str] | None = None,
     params: Mapping[str, str] | None = None,
 ) -> str:
-    wb = _call_customization(customization.build_result_workbook, result, meta or {}, params or {})
-    # 差し替えた処理が作ったシートも含め、入力値が数式として実行されないようにする。
-    neutralize_formulas(wb)
-    buffer = io.BytesIO()
-    wb.save(buffer)
+    with _customization_errors():
+        wb = customization.build_result_workbook(result, meta or {}, params or {})
+        if not isinstance(wb, openpyxl.Workbook):
+            raise TypeError(
+                f"build_result_workbook は openpyxl.Workbook を返してください（{type(wb).__name__} が返されました）"
+            )
+        # 差し替えた処理が作ったシートも含め、入力値が数式として実行されないようにする。
+        neutralize_formulas(wb)
+        buffer = io.BytesIO()
+        wb.save(buffer)
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
@@ -741,19 +749,20 @@ async def validate(
     mapping = config_store.load()
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
-        result = _matching_service(_params_from_json(params)).validate(
-            children_file_bytes=await children_file.read(),
-            children_file_format=_infer_file_format_from_filename(children_file.filename),
-            daycares_file_bytes=await daycares_file.read(),
-            daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
-            mapping=mapping,
-            combination_file_bytes=combo_bytes,
-            combination_file_format=(
-                _infer_file_format_from_filename(combination_file.filename)
-                if combination_file and combination_file.filename
-                else None
-            ),
-        )
+        with _customization_errors():
+            result = _matching_service(_params_from_json(params)).validate(
+                children_file_bytes=await children_file.read(),
+                children_file_format=_infer_file_format_from_filename(children_file.filename),
+                daycares_file_bytes=await daycares_file.read(),
+                daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
+                mapping=mapping,
+                combination_file_bytes=combo_bytes,
+                combination_file_format=(
+                    _infer_file_format_from_filename(combination_file.filename)
+                    if combination_file and combination_file.filename
+                    else None
+                ),
+            )
     except ValueError as e:
         if len(e.args) > 1 and isinstance(e.args[1], dict):
             detail: Any = e.args[1]
@@ -804,20 +813,21 @@ async def match(
     mapping = config_store.load()
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
-        result = _matching_service(_params_from_json(params)).match(
-            children_file_bytes=await children_file.read(),
-            children_file_format=_infer_file_format_from_filename(children_file.filename),
-            daycares_file_bytes=await daycares_file.read(),
-            daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
-            mapping=mapping,
-            solver_config=parsed_solver_config,
-            combination_file_bytes=combo_bytes,
-            combination_file_format=(
-                _infer_file_format_from_filename(combination_file.filename)
-                if combination_file and combination_file.filename
-                else None
-            ),
-        )
+        with _customization_errors():
+            result = _matching_service(_params_from_json(params)).match(
+                children_file_bytes=await children_file.read(),
+                children_file_format=_infer_file_format_from_filename(children_file.filename),
+                daycares_file_bytes=await daycares_file.read(),
+                daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
+                mapping=mapping,
+                solver_config=parsed_solver_config,
+                combination_file_bytes=combo_bytes,
+                combination_file_format=(
+                    _infer_file_format_from_filename(combination_file.filename)
+                    if combination_file and combination_file.filename
+                    else None
+                ),
+            )
     except ValueError as e:
         if len(e.args) > 1 and isinstance(e.args[1], dict):
             detail: Any = e.args[1]
@@ -854,19 +864,20 @@ async def htmx_validate(
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
         params = await _params_from_form(request)
-        result = _matching_service(params).validate(
-            children_file_bytes=await children_file.read(),
-            children_file_format=_infer_file_format_from_filename(children_file.filename),
-            daycares_file_bytes=await daycares_file.read(),
-            daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
-            mapping=mapping,
-            combination_file_bytes=combo_bytes,
-            combination_file_format=(
-                _infer_file_format_from_filename(combination_file.filename)
-                if combination_file and combination_file.filename
-                else None
-            ),
-        )
+        with _customization_errors():
+            result = _matching_service(params).validate(
+                children_file_bytes=await children_file.read(),
+                children_file_format=_infer_file_format_from_filename(children_file.filename),
+                daycares_file_bytes=await daycares_file.read(),
+                daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
+                mapping=mapping,
+                combination_file_bytes=combo_bytes,
+                combination_file_format=(
+                    _infer_file_format_from_filename(combination_file.filename)
+                    if combination_file and combination_file.filename
+                    else None
+                ),
+            )
     except ValueError as e:
         error_code = getattr(e, "code", None)
         error_message = str(e.args[0]) if e.args else str(e)
@@ -933,34 +944,38 @@ async def htmx_match(
     combo_bytes = await combination_file.read() if combination_file and combination_file.filename else None
     try:
         params = await _params_from_form(request)
-        result = _matching_service(params).match(
-            children_file_bytes=await children_file.read(),
-            children_file_format=_infer_file_format_from_filename(children_file.filename),
-            daycares_file_bytes=await daycares_file.read(),
-            daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
-            mapping=mapping,
-            solver_config=parsed_solver_config,
-            combination_file_bytes=combo_bytes,
-            combination_file_format=(
-                _infer_file_format_from_filename(combination_file.filename)
-                if combination_file and combination_file.filename
-                else None
-            ),
-        )
+        with _customization_errors():
+            result = _matching_service(params).match(
+                children_file_bytes=await children_file.read(),
+                children_file_format=_infer_file_format_from_filename(children_file.filename),
+                daycares_file_bytes=await daycares_file.read(),
+                daycares_file_format=_infer_file_format_from_filename(daycares_file.filename),
+                mapping=mapping,
+                solver_config=parsed_solver_config,
+                combination_file_bytes=combo_bytes,
+                combination_file_format=(
+                    _infer_file_format_from_filename(combination_file.filename)
+                    if combination_file and combination_file.filename
+                    else None
+                ),
+            )
         active_profile_name = config_store.get_active_name()
         executed_at = datetime.now(_JST).strftime("%Y-%m-%d %H:%M:%S")
         excel_meta = {
             "active_profile": active_profile_name,
             "executed_at": executed_at,
         }
+        matching_excel_b64 = _build_matching_excel(result, excel_meta, params)
+        with _customization_errors():
+            excel_filename = customization.result_filename(params)
         return templates.TemplateResponse(
             request,
             "match_result.html",
             {
                 "result": result,
                 "view": _build_match_view(result),
-                "matching_excel_b64": _build_matching_excel(result, excel_meta, params),
-                "matching_excel_filename": _call_customization(customization.result_filename, params),
+                "matching_excel_b64": matching_excel_b64,
+                "matching_excel_filename": excel_filename,
                 "active_profile_name": active_profile_name,
                 "executed_at": executed_at,
             },
@@ -1044,10 +1059,9 @@ async def htmx_analyze_columns(
         if upload is None or not upload.filename:
             return
         try:
-            parser = _guard_customized(_call_customization(customization.create_parser), InputParser)
-            columns = parser.read_columns(
-                upload.file, _infer_file_format_from_filename(upload.filename), kind=section
-            )
+            file_format = _infer_file_format_from_filename(upload.filename)
+            with _customization_errors():
+                columns = customization.create_parser().read_columns(upload.file, file_format, kind=section)
         except ValueError as e:
             error_code = getattr(e, "code", None)
             if error_code == ErrorCode.UNSUPPORTED_FILE_FORMAT:

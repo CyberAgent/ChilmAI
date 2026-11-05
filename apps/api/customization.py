@@ -39,6 +39,8 @@ _PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # 半角の整数・小数のみ。float() だと nan・inf・全角数字なども通ってしまう。
 _NUMBER_RE = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$")
 _FIELD_TYPES = ("text", "number", "select", "checkbox")
+_CHECKBOX_TRUE = ("true", "on", "1")
+_CHECKBOX_FALSE = ("false", "off", "0", "")
 
 
 @dataclass(frozen=True)
@@ -178,7 +180,7 @@ def parse_params(fields: Sequence[ParamField], raw: Mapping[str, Any]) -> dict[s
 
     Raises:
         ChilmError: 定義にない項目がある場合、必須項目が未入力の場合、
-            選択肢にない値や数値でない値が入力された場合。
+            選択肢にない値や数値でない値、checkbox に真偽値でない値が入力された場合。
     """
     known = {f.name for f in fields}
     unknown = sorted(str(key) for key in raw if key not in known)
@@ -192,7 +194,15 @@ def parse_params(fields: Sequence[ParamField], raw: Mapping[str, Any]) -> dict[s
             if value is None:
                 text = field.default or "false"
             else:
-                text = "true" if str(value).strip().lower() in ("true", "on", "1") else "false"
+                normalized = str(value).strip().lower()
+                if normalized in _CHECKBOX_TRUE:
+                    text = "true"
+                elif normalized in _CHECKBOX_FALSE:
+                    text = "false"
+                else:
+                    raise _invalid_param(
+                        f"「{field.label}」には true か false を指定してください: {value!r}"
+                    )
             params[field.name] = text
             continue
         # 項目の省略は既定値、空欄での送信は「未入力」として扱う。

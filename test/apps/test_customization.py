@@ -117,9 +117,19 @@ def test_parse_params_keeps_explicit_empty_value_instead_of_default():
     assert parse_params(_FIELDS, {"year": "2027", "month": ""})["month"] == ""
 
 
-@pytest.mark.parametrize(("value", "expected"), [("true", "true"), ("on", "true"), ("false", "false")])
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("true", "true"), ("on", "true"), ("1", "true"), ("false", "false"), ("off", "false"), ("0", "false")],
+)
 def test_parse_params_checkbox_values(value, expected):
     assert parse_params(_FIELDS, {"year": "2027", "flag": value})["flag"] == expected
+
+
+@pytest.mark.parametrize("value", ["yes", "はい", "2"])
+def test_parse_params_rejects_non_boolean_checkbox_value(value):
+    with pytest.raises(ChilmError, match="「フラグ」には true か false を指定してください") as exc_info:
+        parse_params(_FIELDS, {"year": "2027", "flag": value})
+    assert exc_info.value.code == ErrorCode.INVALID_INPUT_PARAMETER
 
 
 # --- load_customization ---------------------------------------------------
@@ -279,6 +289,18 @@ def test_top_page_renders_param_inputs(sample_customization):
     assert re.search(r'name="param__add_remarks" value="true"\s+checked', resp.text)
 
 
+def test_top_page_required_select_without_default_has_placeholder(monkeypatch):
+    class NoDefaultSelect(WebCustomization):
+        fields = (
+            ParamField(name="month", label="入所月", type="select", choices=("4", "5"), required=True),
+        )
+
+    monkeypatch.setattr(api_main, "customization", NoDefaultSelect())
+    resp = TestClient(api_main.app).get("/")
+    assert '<option value="" selected disabled>選択してください</option>' in resp.text
+    assert not re.search(r'<option value="4"\s+selected', resp.text)
+
+
 def test_htmx_match_uses_customized_excel_and_filename(sample_customization):
     resp = TestClient(api_main.app).post(
         "/htmx/match",
@@ -396,10 +418,6 @@ class _ChilmErrorPreprocessor(BasePreprocessor):
         raise ChilmError("年齢の列が不正です", code=ErrorCode.INVALID_INPUT_PARAMETER)
 
 
-# read_table はクラスメソッドから呼ばれるため、エラーは呼び出し元の公開メソッド名で表示される。
-_BROKEN_METHOD_LABEL = {"read_table": "parse_children"}
-
-
 class _BrokenParser(InputParser):
     @classmethod
     def read_table(cls, source, file_format, *, kind=None, nrows=None):
@@ -441,7 +459,7 @@ def test_htmx_match_reports_customization_error(monkeypatch, broken):
     assert resp.status_code == 200
     assert resp.headers["X-Result-Mode"] == "validate-error"
     assert "E109" in resp.text
-    assert _BROKEN_METHOD_LABEL.get(broken, broken) in resp.text
+    assert "カスタマイズ処理の問題" in resp.text
 
 
 @pytest.mark.parametrize("broken", ["transform_children", "read_table"])
@@ -451,7 +469,7 @@ def test_htmx_validate_reports_customization_error(monkeypatch, broken):
     assert resp.status_code == 200
     assert resp.headers["X-Result-Mode"] == "validate-error"
     assert "E109" in resp.text
-    assert _BROKEN_METHOD_LABEL.get(broken, broken) in resp.text
+    assert "カスタマイズ処理の問題" in resp.text
 
 
 def test_customization_keeps_chilm_error_code(monkeypatch):
@@ -463,26 +481,94 @@ def test_customization_keeps_chilm_error_code(monkeypatch):
     assert "年齢の列が不正です" in error["message"]
 
 
-def test_guarded_parser_is_still_input_parser_subclass():
-    parser = api_main._guard_customized(_BrokenParser(), InputParser)
-    assert isinstance(parser, _BrokenParser)
-    with pytest.raises(ChilmError) as exc_info:
-        parser.parse_children(
-            file_bytes=_children_csv(), file_format="csv", mapping=DEFAULT_CONFIG["children"]
-        )
-    assert exc_info.value.code == ErrorCode.CUSTOMIZATION_FAILED
+class _SharedParser(InputParser):
+    pass
 
 
-def test_default_parser_is_not_guarded():
-    parser = InputParser()
-    assert api_main._guard_customized(parser, InputParser) is parser
-    assert "read_table" not in vars(parser)
+_SHARED_PARSER = _SharedParser()
 
 
-@pytest.mark.parametrize(
-    ("broken", "label"), [("create_parser", "create_parser"), ("read_table", "read_columns")]
-)
-def test_analyze_columns_reports_customization_error(monkeypatch, broken, label):
+class _SharedParserCustomization(WebCustomization):
+    def create_parser(self):
+        return _SHARED_PARSER
+
+
+def test_reused_parser_instance_is_not_modified(monkeypatch):
+    # カスタマイズが同じインスタンスを返し続けても、リクエストごとに属性が書き換わらないこと。
+    monkeypatch.setattr(api_main, "customization", _SharedParserCustomization())
+    client = TestClient(api_main.app)
+    for _ in range(3):
+        assert client.post("/htmx/validate", files=_upload_files()).status_code == 200
+    assert vars(_SHARED_PARSER) == {}
+
+
+class _MissingSheetParser(InputParser):
+    SHEET_NAME = "申込一覧"
+
+
+class _MissingSheetCustomization(WebCustomization):
+    def create_parser(self):
+        return _MissingSheetParser()
+
+
+def test_input_file_error_in_inherited_parsing_is_not_customization_error(monkeypatch):
+    # シート名だけを変えたパーサーで、利用者のファイルにそのシートがない場合は E109 にしない。
+    monkeypatch.setattr(api_main, "customization", _MissingSheetCustomization())
+    files = _upload_files()
+    files["children_file"] = (
+        "children.xlsx",
+        io.BytesIO(_children_xlsx_with_title_row()),
+        "application/octet-stream",
+    )
+    resp = TestClient(api_main.app).post("/validate", files=files)
+    assert resp.status_code == 422
+    error = resp.json()["detail"]["errors"][0]
+    assert error["code"] != ErrorCode.CUSTOMIZATION_FAILED
+
+
+def test_default_workbook_error_is_not_customization_error(monkeypatch):
+    # カスタマイズを使っていない場合、標準の結果 Excel の不具合を E109 として表示しない。
+    def broken(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(api_main, "customization", WebCustomization())
+    monkeypatch.setattr(WebCustomization, "build_result_workbook", broken)
+    with pytest.raises(RuntimeError):
+        api_main._build_matching_excel({"output_columns": [], "output_rows": []})
+
+
+class _NoWorkbookCustomization(WebCustomization):
+    def build_result_workbook(self, result, meta, params):
+        return None
+
+
+def test_htmx_match_reports_invalid_workbook_as_customization_error(monkeypatch):
+    monkeypatch.setattr(api_main, "customization", _NoWorkbookCustomization())
+    resp = TestClient(api_main.app).post("/htmx/match", files=_upload_files())
+    assert resp.status_code == 200
+    assert resp.headers["X-Result-Mode"] == "validate-error"
+    assert "E109" in resp.text
+    assert "openpyxl.Workbook" in resp.text
+
+
+def test_validate_view_separates_param_and_customization_errors():
+    view = api_main._build_validate_view(
+        {
+            "is_valid": False,
+            "errors": [
+                {"message": "a", "type": "config", "code": ErrorCode.INVALID_INPUT_PARAMETER},
+                {"message": "b", "type": "config", "code": ErrorCode.CUSTOMIZATION_FAILED},
+                {"message": "c", "type": "config", "code": ErrorCode.MISSING_CHILDREN_COLUMNS},
+            ],
+        }
+    )
+    assert view["param_errors"] == ["[E108] a"]
+    assert view["customization_errors"] == ["[E109] b"]
+    assert view["config_errors"] == ["[E101] c"]
+
+
+@pytest.mark.parametrize("broken", ["create_parser", "read_table"])
+def test_analyze_columns_reports_customization_error(monkeypatch, broken):
     monkeypatch.setattr(api_main, "customization", _BrokenCustomization(broken))
     resp = TestClient(api_main.app).post(
         "/htmx/analyze-columns",
@@ -490,7 +576,7 @@ def test_analyze_columns_reports_customization_error(monkeypatch, broken, label)
     )
     assert resp.status_code == 200
     assert "E109" in resp.text
-    assert label in resp.text
+    assert "children.csv" in resp.text
 
 
 @pytest.mark.parametrize("broken", ["create_preprocessor", "transform_children", "read_table"])

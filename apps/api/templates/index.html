@@ -185,7 +185,8 @@
                     {% if field.type == "select" %}
                     <select id="param-{{ field.name }}" class="dads-input-text__input" data-size="md"
                       name="param__{{ field.name }}" {% if field.required %}required{% endif %}>
-                      {% if not field.required %}<option value="">—</option>{% endif %}
+                      {% if not field.required %}<option value="">—</option>
+                      {% elif not field.default %}<option value="" selected disabled>選択してください</option>{% endif %}
                       {% for choice in field.choices %}
                       <option value="{{ choice }}" {% if choice == field.default %}selected{% endif %}>{{ choice }}</option>
                       {% endfor %}
@@ -427,6 +428,14 @@
           states[2] = 'current';
         }
         goTo(3);
+      });
+
+      // Match response discarded because inputs changed while it was running.
+      // 'change' が先に発火していればリセット済み。'input' だけの場合は「処理中」のまま残るので戻す。
+      document.addEventListener('chilm:match-discarded', function () {
+        if (states[2] !== 'processing') return;
+        states = ['current', 'locked', 'locked'];
+        goTo(1);
       });
 
       // Reset stepper when files or additional inputs change

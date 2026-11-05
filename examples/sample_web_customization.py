@@ -29,7 +29,7 @@ from chilmai.generic.preprocessor import BasePreprocessor
 
 
 class TitleRowParser(InputParser):
-    """申込者データの Excel だけ、2 行目を列名として読む。
+    """申込者データの Excel だけ、帳票タイトルの次の行（既定では 2 行目）を列名として読む。
 
     対象のシートと列名の行がすべてのファイルで同じ場合は、``read_table`` を
     オーバーライドせずに、クラス属性を上書きするだけでよい::
@@ -49,7 +49,12 @@ class TitleRowParser(InputParser):
         nrows: int | None = None,
     ) -> pd.DataFrame:
         if kind == "children" and file_format == "excel":
-            return pd.read_excel(source, sheet_name=0, dtype=str, header=1, nrows=nrows, engine="calamine")
+            # 申込者データだけ列名の行を 1 行下げる。シートの指定（SHEET_NAME）や読み込み方法は
+            # 標準の処理に任せるため、HEADER_ROW だけを変えたクラスで標準の read_table を呼ぶ。
+            children_parser = type(cls.__name__, (cls,), {"HEADER_ROW": cls.HEADER_ROW + 1})
+            return super(TitleRowParser, children_parser).read_table(
+                source, file_format, kind=kind, nrows=nrows
+            )
         return super().read_table(source, file_format, kind=kind, nrows=nrows)
 
 

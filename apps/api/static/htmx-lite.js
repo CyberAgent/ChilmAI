@@ -170,6 +170,10 @@
         }
         target.innerHTML =
           '<p class="empty-state">入力が変更されたため、もう一度データ確認を実行してください。</p>';
+        if (isMatchAction) {
+          // before-match で「処理中」にしたステップを戻す。入力が変わったので、データ確認からやり直す。
+          document.dispatchEvent(new CustomEvent('chilm:match-discarded'));
+        }
       } else if (isMatchAction || isValidateAction) {
         submitter.disabled = false;
         if (fetchError) {

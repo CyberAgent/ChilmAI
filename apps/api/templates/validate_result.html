@@ -43,6 +43,32 @@
     <p class="next-action">→ <a href="/settings">項目名の設定</a>で列名を確認してください</p>
   </div>
 {% endif %}
+{% if view.param_errors %}
+  <div class="section-stack">
+    <div class="dads-heading" data-size="20">
+      <h3 class="dads-heading__heading">入力項目の問題</h3>
+    </div>
+    <ul class="message-list" data-tone="error" aria-label="入力項目エラー一覧">
+      {% for e in view.param_errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+    <p class="next-action">→ アップロード画面の入力項目を確認してください</p>
+  </div>
+{% endif %}
+{% if view.customization_errors %}
+  <div class="section-stack">
+    <div class="dads-heading" data-size="20">
+      <h3 class="dads-heading__heading">カスタマイズ処理の問題</h3>
+    </div>
+    <ul class="message-list" data-tone="error" aria-label="カスタマイズ処理エラー一覧">
+      {% for e in view.customization_errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+    <p class="next-action">→ カスタマイズを用意した担当者に、エラーメッセージとサーバのログを伝えて確認を依頼してください</p>
+  </div>
+{% endif %}
 {% if view.data_errors %}
   <div class="section-stack">
     <div class="dads-heading" data-size="20">
