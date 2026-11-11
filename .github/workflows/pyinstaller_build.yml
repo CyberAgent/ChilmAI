@@ -13,13 +13,13 @@ jobs:
   pyinstaller:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
       - name: Setup Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.11"
       - name: Setup uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
           cache-suffix: pyinstaller
@@ -97,7 +97,7 @@ jobs:
         # PR 段階の成果物を動作確認用に配る。upload-artifact がディレクトリを
         # zip に包むので、ダウンロードはそのまま zip として落ちてくる。
         # 成果物は数百 MB 級なので保持期間は短くする。
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ChilmAI-windows-${{ github.sha }}
           path: dist/ChilmAI/
