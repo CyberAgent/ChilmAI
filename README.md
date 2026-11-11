@@ -18,7 +18,7 @@
   <a href="https://pypi.org/project/chilmai/">
     <img src="https://img.shields.io/pypi/v/chilmai" alt="PyPI">
   </a>
-  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue" alt="Python 3.11-3.14">
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue" alt="Python 3.11-3.15">
   <a href="https://cyberagent.github.io/ChilmAI/reference/license/">
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
   </a>
@@ -52,7 +52,7 @@ Windows 11（64-bit）では、最新リリースの [ChilmAI-latest.zip](https:
 
 ### ライブラリとして利用する
 
-Python 3.11 〜 3.14 の環境に、[PyPI](https://pypi.org/project/chilmai/) からインストールします。パッケージに含まれるのはコアライブラリ（`chilmai`）のみで、Web UI・HTTP API のリファレンス実装（`apps/`）とサンプルデータは含まれません。
+Python 3.11 〜 3.15 の環境に、[PyPI](https://pypi.org/project/chilmai/) からインストールします。パッケージに含まれるのはコアライブラリ（`chilmai`）のみで、Web UI・HTTP API のリファレンス実装（`apps/`）とサンプルデータは含まれません。
 
 ```bash
 pip install chilmai
@@ -66,7 +66,7 @@ uv add chilmai
 
 ### ソースコードから利用する
 
-Git、Python 3.11 〜 3.14、[uv](https://docs.astral.sh/uv/) を用意して、依存関係をインストールします。Web UI を利用する場合は、Microsoft Edge や Google Chrome などのモダンブラウザも必要です。
+Git、Python 3.11 〜 3.15、[uv](https://docs.astral.sh/uv/) を用意して、依存関係をインストールします。Web UI を利用する場合は、Microsoft Edge や Google Chrome などのモダンブラウザも必要です。
 
 ```bash
 git clone https://github.com/CyberAgent/ChilmAI.git
