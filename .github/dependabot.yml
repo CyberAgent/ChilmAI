@@ -1,8 +1,9 @@
 version: 2
 updates:
-  # ワークフローのアクションはサプライチェーン対策としてコミット SHA で
-  # ピン留めしている。Dependabot は SHA とバージョンコメントの両方を
-  # 更新する PR を出すので、ピン留めの追従はこれに任せる。
+  # ワークフローのアクションはサプライチェーン対策として
+  # .github/workflows/actions.lock（gh actions-lock が生成）でコミットに固定している。
+  # Dependabot はタグの更新と同時に lockfile のエントリも更新する PR を出すので、
+  # 追従はこれに任せる。
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
