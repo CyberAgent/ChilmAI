@@ -63,7 +63,7 @@ jobs:
       - name: Coverage comment
         id: coverage_comment
         if: matrix.python-version == '3.12'
-        uses: py-cov-action/python-coverage-comment-action@v4.5
+        uses: py-cov-action/python-coverage-comment-action@v4.6
         with:
           GITHUB_TOKEN: ${{ github.token }}
       # フォークからの PR では GITHUB_TOKEN にコメント権限がないため、
