@@ -4,7 +4,7 @@
 version: 'v0.0.3'
 workflows:
     '.github/workflows/coverage_comment.yml':
-        - 'py-cov-action/python-coverage-comment-action@v4.5'
+        - 'py-cov-action/python-coverage-comment-action@v4.6'
     '.github/workflows/lint.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-python@v7.1.0'
@@ -26,7 +26,7 @@ workflows:
         - 'actions/setup-python@v7.1.0'
         - 'actions/upload-artifact@v7.0.2'
         - 'astral-sh/setup-uv@v10.3.3'
-        - 'py-cov-action/python-coverage-comment-action@v4.5'
+        - 'py-cov-action/python-coverage-comment-action@v4.6'
     '.github/workflows/pytest_win.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-python@v7.1.0'
@@ -103,9 +103,9 @@ dependencies:
         commit: 'sha1-68559e99cc807c1eb7e9238fd43a15bba460eec2'
         owner_id: 115962839
         repo_id: 846733598
-    'py-cov-action/python-coverage-comment-action@v4.5':
-        ref: 'v4.5'
-        commit: 'sha1-e5fb2218463c3377f3504b0c5b5646ed53da7a2f'
+    'py-cov-action/python-coverage-comment-action@v4.6':
+        ref: 'v4.6'
+        commit: 'sha1-07249dd712cd2464873eb8a59a24f97fd281e76f'
         owner_id: 113062226
         repo_id: 443596190
     'pypa/gh-action-pypi-publish@v1.14.3':
