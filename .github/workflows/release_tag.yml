@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           # 他ジョブと uv キャッシュの保存が競合しないようキーを分離する
           cache-suffix: release-tag
